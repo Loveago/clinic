@@ -115,21 +115,21 @@ export default function SchoolNavbar() {
                   All Academic Programmes
                 </Link>
                 <Link
-                  href="/school/programs#dcg"
+                  href="/school/programs/dcg"
                   onClick={() => setCoursesDropdownOpen(false)}
                   className="block px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   Diploma in Care Giving
                 </Link>
                 <Link
-                  href="/school/programs#nas"
+                  href="/school/programs/nas"
                   onClick={() => setCoursesDropdownOpen(false)}
                   className="block px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   Nursing Assistant Studies
                 </Link>
                 <Link
-                  href="/school/programs#phe"
+                  href="/school/programs/phe"
                   onClick={() => setCoursesDropdownOpen(false)}
                   className="block px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
                 >
