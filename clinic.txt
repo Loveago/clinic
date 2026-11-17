@@ -1,0 +1,2028 @@
+# MASTER BUILD SPECIFICATION
+## Integrated Clinic & Nursing Training School Digital Platform
+
+**Powered by:** Crazy Tech Enterprise  
+**Project Type:** Full-Stack Web Application  
+**Frontend:** Next.js, React, TypeScript  
+**Backend:** Node.js, NestJS, TypeScript  
+**Database:** PostgreSQL  
+**ORM:** Prisma  
+**Architecture:** Modular, API-driven, multi-portal application
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+Build a complete, modern, secure and scalable digital platform for a healthcare clinic that also operates a nursing training institution.
+
+The system must combine three major products:
+
+1. A professional public-facing clinic website.
+2. A nursing training school website.
+3. A comprehensive school management and e-learning system.
+
+The system must support different users, administrative roles, academic workflows, online payments, course management, examinations, student performance tracking and institutional reporting.
+
+This is a real production application, not a demonstration project.
+
+**Important development instructions:**
+
+- Build working features, not static mockups.
+- All forms must connect to real backend endpoints.
+- All dashboards must display actual database information.
+- All buttons and actions must work.
+- Authentication and authorization must be implemented properly.
+- Do not use fake data as a substitute for real functionality.
+- Do not leave placeholder pages or unfinished modules.
+- Build reusable components and maintainable architecture.
+- Make the platform responsive, particularly on mobile devices.
+- Prioritize functionality, security and maintainability alongside visual quality.
+
+---
+
+# 2. TECHNOLOGY STACK
+
+Use the following technologies throughout the project.
+
+## Frontend
+
+- Next.js with App Router.
+- React.
+- TypeScript.
+- Tailwind CSS.
+- shadcn/ui for carefully selected interface components.
+- React Hook Form for form handling.
+- Zod for validation.
+- TanStack Query for API data fetching and caching.
+- Zustand where lightweight global client state is necessary.
+- Recharts for dashboards and analytics.
+
+## Backend
+
+- Node.js.
+- NestJS.
+- TypeScript.
+- REST API architecture.
+- Prisma ORM.
+- PostgreSQL.
+- JWT-based authentication with secure refresh-token handling.
+- Role-based access control.
+- Swagger/OpenAPI API documentation.
+
+## Supporting Infrastructure
+
+- PostgreSQL database.
+- Local file storage during development, with an abstraction that supports S3-compatible storage in production.
+- Redis and background jobs where needed for notifications, email processing and other asynchronous tasks.
+- PM2-compatible production deployment.
+- Nginx reverse proxy.
+- Environment-based configuration.
+
+Do not introduce unnecessary paid services or dependencies. Use modular integrations so external providers can be configured later.
+
+---
+
+# 3. APPLICATION ARCHITECTURE
+
+Build the application using a modular monorepo architecture.
+
+Recommended structure:
+
+```text
+clinic-platform/
+│
+├── apps/
+│   ├── web/
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── lib/
+│   │   ├── services/
+│   │   └── types/
+│   │
+│   └── api/
+│       ├── src/
+│       │   ├── auth/
+│       │   ├── users/
+│       │   ├── clinic/
+│       │   ├── admissions/
+│       │   ├── students/
+│       │   ├── academics/
+│       │   ├── courses/
+│       │   ├── materials/
+│       │   ├── examinations/
+│       │   ├── results/
+│       │   ├── lecturers/
+│       │   ├── finance/
+│       │   ├── payments/
+│       │   ├── notifications/
+│       │   ├── reports/
+│       │   ├── settings/
+│       │   └── common/
+│       │
+│       └── prisma/
+│
+├── packages/
+│   ├── shared-types/
+│   ├── validation/
+│   └── shared-utils/
+│
+├── package.json
+└── README.md
+```
+
+The frontend and backend must be separate applications with clear responsibilities.
+
+Next.js must communicate with the backend through authenticated API requests. Do not place core business logic exclusively in frontend components or Next.js client code.
+
+Use a consistent API response structure, centralized error handling, request validation and API versioning.
+
+---
+
+# 4. DOMAIN AND WEBSITE STRUCTURE
+
+The system must support the following deployment structure:
+
+### Main clinic website
+
+`www.clinicdomain.com`
+
+Public-facing website for the clinic.
+
+### Nursing school website
+
+`school.clinicdomain.com`
+
+Public-facing website for the nursing school, admissions and student login.
+
+### API
+
+`api.clinicdomain.com`
+
+Central backend API used by the frontend applications.
+
+The clinic and school must have their own branding, content, navigation and administrative settings while sharing the central backend and database where appropriate.
+
+Implement proper subdomain routing and authentication cookie configuration.
+
+The student portal should be accessible through the school subdomain.
+
+---
+
+# 5. USER ROLES AND PERMISSIONS
+
+Implement a proper permission system.
+
+Do not rely on hiding frontend buttons for security. All permissions must also be enforced by the backend.
+
+## Main roles
+
+### Super Administrator
+- Full platform access.
+- Manage all users.
+- Manage system settings.
+- Manage clinic and school modules.
+- Manage administrative permissions.
+- View system-wide reports.
+- Configure integrations.
+
+### Clinic Administrator
+- Manage clinic website content.
+- Manage clinic services.
+- Manage appointment enquiries.
+- Manage clinic announcements.
+- Manage clinic contact information.
+- Access permitted clinic reports.
+
+### School Administrator
+- Manage school operations.
+- Manage students.
+- Manage academic programmes.
+- Manage courses.
+- Manage admissions.
+- Manage lecturers.
+- Manage examinations.
+- View school reports.
+
+### Admissions Officer
+- Manage application forms.
+- Review submitted applications.
+- Verify applicant documents.
+- Approve or reject applications.
+- Manage admission statuses.
+
+### Finance Officer
+- View payment records.
+- Manage fee structures.
+- Record authorized manual payments.
+- View outstanding balances.
+- Generate financial reports.
+- Issue payment receipts.
+
+### Lecturer
+- Access assigned courses.
+- Upload course materials.
+- Create assessments.
+- Manage examinations.
+- Review student submissions.
+- Grade subjective questions.
+- Monitor student progress.
+
+### Examination Officer
+- Manage examination schedules.
+- Manage question banks.
+- Configure examination rules.
+- Review examination activities.
+- Publish approved results.
+
+### Student
+- Access personal dashboard.
+- View enrolled courses.
+- Download learning materials.
+- Complete assessments.
+- Take examinations.
+- View results.
+- View academic progress.
+- Access announcements.
+- View financial records when the finance module is enabled.
+
+Allow the super administrator to create additional roles and customize permissions.
+
+---
+
+# 6. PUBLIC CLINIC WEBSITE
+
+Develop a premium, professional clinic website.
+
+## Pages
+
+- Homepage.
+- About the clinic.
+- Medical services.
+- Departments and specialties.
+- Medical team.
+- Facilities and gallery.
+- News and health articles.
+- Contact.
+- Location.
+- Appointment requests.
+- Privacy policy.
+- Terms and conditions.
+
+## Homepage requirements
+
+Include:
+
+- Professional hero section.
+- Clear clinic introduction.
+- Medical service highlights.
+- Featured departments.
+- Medical team introduction.
+- Clinic facilities.
+- Patient information section.
+- Location and contact details.
+- Appointment call-to-action.
+- Nursing school promotional section.
+- Footer with essential navigation.
+
+## Appointment management
+
+Allow visitors to submit appointment requests.
+
+Collect:
+- Patient name.
+- Contact number.
+- Email where available.
+- Requested service or department.
+- Preferred appointment date.
+- Preferred time.
+- Optional message.
+
+Administrative functions:
+- View appointment requests.
+- Confirm or decline requests.
+- Reschedule appointments.
+- Mark appointments as completed.
+- Add internal notes.
+- Search and filter appointments.
+- Send notifications to patients.
+
+Appointment requests must not be represented as confirmed bookings until staff approve them.
+
+Keep the initial clinic system limited to public information and appointment requests. Any future electronic medical records, diagnoses or patient treatment records must be a separately scoped, access-restricted module.
+
+---
+
+# 7. PUBLIC NURSING SCHOOL WEBSITE
+
+Develop a separate school website under the school subdomain.
+
+## Pages
+
+- School homepage.
+- About the institution.
+- History.
+- Mission and vision.
+- Management.
+- Academic programmes.
+- Programme details.
+- Admission requirements.
+- Admission announcements.
+- Application instructions.
+- Contact and location.
+- Frequently asked questions.
+- Student login.
+- Privacy policy.
+- Terms and conditions.
+
+## Academic programme information
+
+Administrators must be able to create and manage:
+
+- Programme names.
+- Programme descriptions.
+- Programme duration.
+- Admission requirements.
+- Entry qualifications.
+- Available academic sessions.
+- Programme status.
+- Associated courses.
+
+Do not hardcode programmes into the frontend.
+
+---
+
+# 8. ONLINE ADMISSION SYSTEM
+
+Build a complete online admission application system.
+
+## Admission form sales
+
+Prospective students should be able to:
+
+1. Visit the school website.
+2. Select an available admission application.
+3. Enter basic contact information.
+4. Select their preferred programme.
+5. Purchase an admission form.
+6. Pay through the configured payment gateway.
+7. Receive a unique application reference.
+8. Complete their application.
+9. Upload the required documents.
+10. Submit the application.
+
+## Payment integration
+
+Prepare an extensible payment module that supports providers such as:
+
+- Paystack.
+- Flutterwave.
+- ExpressPay.
+
+The actual provider will be selected and configured by the institution.
+
+Requirements:
+- Initialize transactions on the backend.
+- Verify payments using server-side provider verification and signed webhooks.
+- Never trust frontend payment success responses.
+- Prevent duplicate payment processing.
+- Maintain transaction references.
+- Store payment status and provider references.
+- Generate receipts.
+- Handle failed, abandoned and pending payments.
+
+Support Ghanaian payment methods available through the selected provider, including Mobile Money where supported.
+
+## Application form fields
+
+Support configurable fields such as:
+
+- Full name.
+- Date of birth.
+- Gender, where institutionally required.
+- Nationality.
+- Contact information.
+- Residential address.
+- Educational background.
+- Previous institution.
+- Examination results.
+- Programme selection.
+- Emergency contact.
+- Required document uploads.
+
+The application form must be configurable by authorized administrators.
+
+## Application tracking
+
+Applicants should be able to check application status using their reference number and appropriate verification.
+
+Possible statuses:
+
+- Payment pending.
+- Form purchased.
+- Application in progress.
+- Submitted.
+- Under review.
+- Additional information required.
+- Approved.
+- Rejected.
+
+Provide email or SMS notifications where integrations are configured.
+
+## Admission administration
+
+Administrators must be able to:
+- View all applications.
+- Search and filter applications.
+- Open complete applicant profiles.
+- Review uploaded documents.
+- Add internal comments.
+- Request additional documents.
+- Approve applications.
+- Reject applications.
+- Export application lists.
+- Generate admission letters.
+- Convert approved applicants into student records.
+
+Ensure that an application cannot be converted into an enrolled student twice.
+
+---
+
+# 9. STUDENT MANAGEMENT SYSTEM
+
+This module will manage students from admission through graduation.
+
+## Student registration
+
+When an applicant is admitted:
+
+- Create a student record.
+- Generate a unique student number.
+- Assign an academic programme.
+- Assign an academic session.
+- Assign an intake.
+- Create a student login.
+- Send account activation instructions.
+
+Allow administrators to manually register students when necessary.
+
+## Student profiles
+
+Each student should have a complete profile containing:
+
+- Student identification number.
+- Full name.
+- Profile photograph.
+- Date of birth.
+- Contact details.
+- Address.
+- Programme.
+- Academic session.
+- Admission date.
+- Enrolment status.
+- Emergency contact.
+- Academic history.
+- Course enrolment.
+- Examination history.
+- Financial records.
+
+Restrict access to sensitive personal information.
+
+## Student statuses
+
+Support:
+- Applicant.
+- Admitted.
+- Active.
+- Deferred.
+- Suspended.
+- Withdrawn.
+- Graduated.
+
+## Student ID cards
+
+Generate downloadable digital student ID cards containing:
+- Student photograph.
+- Student name.
+- Student ID.
+- Programme.
+- Institution name.
+- Academic session.
+- Optional QR code for verification.
+
+---
+
+# 10. STUDENT PORTAL
+
+Develop a complete student dashboard.
+
+The student experience must be simple, clean and optimized for mobile devices.
+
+## Student dashboard
+
+Display:
+- Welcome message.
+- Student profile summary.
+- Student ID.
+- Current academic programme.
+- Current semester.
+- Enrolled courses.
+- Course progress.
+- Upcoming examinations.
+- Recent examination results.
+- Outstanding academic tasks.
+- Recent announcements.
+- Recent learning materials.
+- Fee balance when finance functionality is enabled.
+
+## Student navigation
+
+- Dashboard.
+- My Profile.
+- My Courses.
+- Learning Materials.
+- Examinations.
+- My Results.
+- Academic Calendar.
+- Announcements.
+- Attendance.
+- Fees and Payments.
+- Support.
+- Settings.
+
+Hide unavailable modules until they are enabled.
+
+---
+
+# 11. ACADEMIC MANAGEMENT SYSTEM
+
+This module must provide a structured academic hierarchy.
+
+Use the following structure:
+
+Institution → Academic Session → Semester → Programme → Course → Module → Topic → Learning Materials / Assessment.
+
+## Academic sessions
+
+Administrators must be able to:
+- Create academic sessions.
+- Define start and end dates.
+- Set current sessions.
+- Manage student intakes.
+- Archive previous sessions.
+
+## Semesters
+
+- Create semesters.
+- Assign semester dates.
+- Assign courses.
+- Manage semester registration.
+- Track semester progress.
+
+## Programmes
+
+- Create programmes.
+- Set programme duration.
+- Define programme requirements.
+- Assign courses.
+- Manage programme status.
+
+## Courses
+
+- Create courses.
+- Assign course codes.
+- Add course descriptions.
+- Set credit hours where applicable.
+- Assign lecturers.
+- Assign academic periods.
+- Organize content into modules and topics.
+
+## Course progression
+
+Students should see their courses organized clearly.
+
+Each course must display:
+- Course overview.
+- Learning objectives.
+- Course modules.
+- Topics.
+- Learning resources.
+- Assessments.
+- Completion status.
+
+Support configurable progression requirements.
+
+For example, administrators may require students to complete a topic assessment before unlocking the next topic.
+
+Do not force this restriction on every course. It must be configurable.
+
+---
+
+# 12. LEARNING MANAGEMENT SYSTEM
+
+Build a complete LMS.
+
+## Course content
+
+Lecturers should be able to upload:
+
+- PDF files.
+- Word documents.
+- PowerPoint presentations.
+- Images.
+- Video lessons.
+- Audio recordings.
+- External learning links.
+
+Organize materials by course, module and topic.
+
+## Material management
+
+- Upload materials.
+- Edit descriptions.
+- Replace outdated resources.
+- Set publication dates.
+- Schedule future publication.
+- Restrict materials to enrolled students.
+- Archive materials.
+- Track downloads where appropriate.
+
+## Student experience
+
+Students must be able to:
+- Open their courses.
+- Browse topics.
+- View available learning materials.
+- Download resources.
+- Watch uploaded videos.
+- Track topic completion.
+- Resume their learning activities.
+
+Support responsive document and video viewing.
+
+Do not assume that every material must be downloaded. Allow lecturers to choose whether a resource is downloadable.
+
+## Course completion tracking
+
+Track:
+- Topics viewed.
+- Materials accessed.
+- Assessments completed.
+- Topics completed.
+- Overall course progress.
+
+Clearly distinguish between simply viewing a resource and formally completing an academic requirement.
+
+---
+
+# 13. EXAMINATION & ASSESSMENT SYSTEM
+
+This is a critical component.
+
+Build a proper online examination engine.
+
+## Question bank
+
+Lecturers and authorized examination staff must be able to create reusable question banks.
+
+Supported question types:
+
+1. Multiple choice.
+2. Multiple select.
+3. True or false.
+4. Short answer.
+5. Fill in the blank.
+6. Essay questions.
+
+Each question should support:
+- Question text.
+- Answer options where applicable.
+- Correct answer.
+- Marks.
+- Explanation.
+- Difficulty level.
+- Associated course.
+- Associated topic.
+- Category or question bank.
+
+Support optional image-based questions and diagrams.
+
+## Examination creation
+
+Administrators and authorized lecturers must be able to configure:
+
+- Examination title.
+- Course.
+- Topic or module.
+- Instructions.
+- Start date and time.
+- End date and time.
+- Duration.
+- Total marks.
+- Pass mark.
+- Number of attempts.
+- Question randomization.
+- Answer option randomization.
+- Availability to selected students.
+- Result publication rules.
+
+## Examination experience
+
+Student examination interface must include:
+
+- Clear instructions.
+- Countdown timer.
+- Question navigation.
+- Answer selection.
+- Answer saving.
+- Progress indicator.
+- Review unanswered questions.
+- Confirmation before final submission.
+- Automatic submission when time expires.
+
+Persist answers periodically so that a temporary browser refresh or network interruption does not unnecessarily destroy examination progress.
+
+Use server-authoritative examination timing and submission validation.
+
+## Automatic grading
+
+Automatically grade:
+- Multiple choice.
+- Multiple select.
+- True or false.
+- Configured short answers.
+- Fill-in-the-blank questions with defined accepted answers.
+
+## Manual grading
+
+Essay and other subjective responses must be placed in a grading queue.
+
+Lecturers should be able to:
+- Open submitted answers.
+- Assign marks.
+- Add feedback.
+- Save grading progress.
+- Submit final grades.
+
+## Examination security
+
+Implement:
+- Randomized questions where configured.
+- Randomized answer order.
+- Attempt restrictions.
+- Time restrictions.
+- Server-side deadline enforcement.
+- Examination activity logs.
+- Prevention of duplicate submissions.
+- Access restrictions based on examination schedules.
+
+Do not advertise the system as cheat-proof. Advanced proctoring should be a separate optional feature requiring institutional approval.
+
+## Results
+
+Students should receive immediate results for automatically graded examinations when the examination's publication settings permit it.
+
+Manually graded examinations should display a pending status until grading is completed and results are released.
+
+Display:
+- Score obtained.
+- Total marks.
+- Percentage.
+- Pass or fail status.
+- Lecturer feedback where permitted.
+- Examination date.
+- Attempt number.
+
+---
+
+# 14. RESULTS & ACADEMIC RECORDS
+
+Develop a centralized results management module.
+
+Features:
+- Individual examination results.
+- Course assessment scores.
+- Continuous assessment.
+- Semester results.
+- Academic performance summaries.
+- Grade calculations.
+- Configurable grading scales.
+- Pass and fail status.
+- Result approval workflow.
+- Result publication controls.
+- Downloadable result statements.
+
+Administrators must be able to configure grading rules rather than hardcoding a single grading system.
+
+Provide result correction workflows with audit logs.
+
+Students must only access their own results.
+
+---
+
+# 15. LECTURER PORTAL
+
+Develop a separate lecturer dashboard.
+
+## Lecturer dashboard
+
+Display:
+- Assigned courses.
+- Total enrolled students.
+- Recent course activities.
+- Pending grading.
+- Upcoming examinations.
+- Recent submissions.
+- Student performance summaries.
+
+## Lecturer functionalities
+
+- View assigned courses.
+- Create course modules and topics.
+- Upload learning materials.
+- Create assessments.
+- Manage question banks.
+- Schedule examinations.
+- Review student submissions.
+- Grade subjective questions.
+- Provide feedback.
+- Monitor student progress.
+- Publish course announcements.
+
+Lecturers should only manage the courses and academic records for which they have permission.
+
+---
+
+# 16. FINANCE & SCHOOL FEES MANAGEMENT
+
+Build the finance module in a way that allows it to be activated from the beginning or introduced in a later phase.
+
+## Fee structures
+
+Support:
+- Programme-based fees.
+- Semester-based fees.
+- Academic session fees.
+- Registration fees.
+- Examination fees.
+- Miscellaneous fees.
+- Other configurable charges.
+
+## Student financial accounts
+
+Each student should have a financial account showing:
+- Total fees charged.
+- Payments made.
+- Outstanding balance.
+- Payment history.
+- Payment references.
+- Receipts.
+- Applicable discounts or adjustments.
+
+## Online payments
+
+Allow students to:
+- View fees.
+- Pay outstanding fees.
+- Make partial payments where permitted.
+- Download receipts.
+- View payment history.
+
+## Finance administration
+
+Finance officers should be able to:
+- Create fee structures.
+- Assign fees to programmes or students.
+- Record approved manual payments.
+- Verify transactions.
+- Manage payment adjustments.
+- Track outstanding balances.
+- Generate receipts.
+- Export financial reports.
+
+All financial changes must be logged.
+
+Never allow frontend payment confirmation to update a student's balance without verified backend payment processing.
+
+---
+
+# 17. ATTENDANCE MANAGEMENT
+
+Build an optional attendance module.
+
+Lecturers should be able to:
+- Create attendance sessions.
+- Select a course.
+- Mark students present.
+- Mark students absent.
+- Mark students late.
+- Add attendance notes.
+
+Students should be able to view their attendance history.
+
+Administrators should be able to:
+- View attendance summaries.
+- Generate attendance reports.
+- Track attendance by course.
+- Identify students below attendance requirements.
+
+Support configurable attendance rules.
+
+---
+
+# 18. ACADEMIC CALENDAR
+
+Create a centralized academic calendar.
+
+Administrators can add:
+- Semester opening dates.
+- Semester closing dates.
+- Registration deadlines.
+- Examination dates.
+- School holidays.
+- Orientation dates.
+- Events.
+- Important announcements.
+
+Display relevant events on student and lecturer dashboards.
+
+---
+
+# 19. NOTIFICATIONS & COMMUNICATION
+
+Create a centralized notification module.
+
+Support:
+- In-app notifications.
+- Email notifications.
+- SMS integration through configurable providers.
+- Optional WhatsApp integration through approved business APIs.
+
+Notification events should include:
+- New admission announcements.
+- Application payment confirmations.
+- Admission decisions.
+- Student account activation.
+- New learning materials.
+- Upcoming examinations.
+- Examination results.
+- New announcements.
+- Fee payment confirmations.
+- Outstanding fee reminders.
+- Academic calendar reminders.
+
+Users should have notification preferences where appropriate.
+
+Create reusable notification templates.
+
+Do not make the application dependent on one notification provider.
+
+---
+
+# 20. SCHOOL ANNOUNCEMENTS & CONTENT MANAGEMENT
+
+Administrators should be able to publish announcements for:
+- All students.
+- Selected programmes.
+- Selected academic sessions.
+- Specific courses.
+- Lecturers.
+- General website visitors.
+
+Support:
+- Announcement title.
+- Description.
+- Attachments.
+- Publication date.
+- Expiry date.
+- Target audience.
+- Priority level.
+
+Allow the public website content to be managed through the administration dashboard.
+
+---
+
+# 21. STUDENT SUPPORT SYSTEM
+
+Create a basic support and enquiry module.
+
+Students should be able to:
+- Submit academic enquiries.
+- Report portal issues.
+- Ask course-related questions.
+- Submit administrative requests.
+- Track support ticket status.
+
+Support statuses:
+- Open.
+- In progress.
+- Waiting for student.
+- Resolved.
+- Closed.
+
+Authorized staff should be able to assign tickets and respond.
+
+---
+
+# 22. ADMINISTRATION DASHBOARD
+
+Develop a professional central administration dashboard.
+
+## Main dashboard
+
+Display:
+- Total students.
+- Active students.
+- New applications.
+- Pending admissions.
+- Total lecturers.
+- Total programmes.
+- Total courses.
+- Upcoming examinations.
+- Recent activities.
+- Recent payments.
+- Outstanding fees when finance is enabled.
+
+## Administration modules
+
+- User management.
+- Role and permission management.
+- Clinic content management.
+- School content management.
+- Admission management.
+- Student management.
+- Academic management.
+- Course management.
+- Lecturer management.
+- Learning materials.
+- Examination management.
+- Results management.
+- Finance management.
+- Attendance.
+- Notifications.
+- Support tickets.
+- Reports.
+- System settings.
+- Audit logs.
+
+Use searchable, filterable tables with pagination.
+
+Include CSV exports for appropriate reports.
+
+Do not overload the dashboard with every metric. Prioritize important information and provide drill-down views.
+
+---
+
+# 23. REPORTING & ANALYTICS
+
+Build useful reporting tools.
+
+## Academic reports
+
+- Student enrolment by programme.
+- Student enrolment by academic session.
+- Course performance.
+- Examination participation.
+- Pass and fail statistics.
+- Student progress.
+- Lecturer course activity.
+- Attendance statistics.
+
+## Admission reports
+
+- Total forms sold.
+- Total applications.
+- Applications by programme.
+- Pending applications.
+- Approved applications.
+- Rejected applications.
+- Admission conversion statistics.
+
+## Financial reports
+
+- Total fees collected.
+- Outstanding balances.
+- Payments by period.
+- Payments by programme.
+- Individual student statements.
+- Transaction history.
+
+Provide date filters and CSV/PDF export options.
+
+Only display financial reports to authorized users.
+
+---
+
+# 24. SYSTEM SETTINGS
+
+The super administrator should be able to manage:
+
+- Institution name.
+- Clinic details.
+- School details.
+- Logos and branding.
+- Contact information.
+- Domain-related settings.
+- Academic settings.
+- Grading scales.
+- Admission settings.
+- Payment provider configuration.
+- Notification settings.
+- Email templates.
+- File upload limits.
+- User permissions.
+- Security settings.
+
+Store sensitive API keys and payment credentials securely on the backend. Never expose them to the frontend.
+
+---
+
+# 25. DATABASE DESIGN
+
+Use PostgreSQL with Prisma.
+
+Design a normalized relational database with proper relationships, foreign keys, indexes and unique constraints.
+
+The schema should cover at least the following entities:
+
+### Identity and access
+- User.
+- Role.
+- Permission.
+- UserRole.
+- RolePermission.
+- Session.
+- PasswordResetToken.
+- AuditLog.
+
+### Institution and clinic
+- InstitutionSettings.
+- ClinicService.
+- ClinicDepartment.
+- MedicalStaffProfile.
+- Appointment.
+- WebsitePage.
+- BlogPost.
+- MediaAsset.
+
+### Admissions
+- AdmissionCycle.
+- AdmissionForm.
+- Application.
+- ApplicationDocument.
+- ApplicationStatusHistory.
+- AdmissionDecision.
+
+### Students
+- Student.
+- StudentProfile.
+- StudentProgramme.
+- StudentEnrollment.
+- StudentIDCard.
+- EmergencyContact.
+
+### Academic structure
+- AcademicSession.
+- Semester.
+- Programme.
+- Course.
+- CourseEnrollment.
+- CourseModule.
+- CourseTopic.
+- LecturerAssignment.
+
+### Learning management
+- LearningMaterial.
+- MaterialAccess.
+- TopicProgress.
+- CourseProgress.
+
+### Examinations
+- QuestionBank.
+- Question.
+- QuestionOption.
+- Examination.
+- ExaminationQuestion.
+- ExaminationAttempt.
+- StudentAnswer.
+- ExaminationGrade.
+- Result.
+- ResultPublication.
+
+### Finance
+- FeeStructure.
+- StudentFee.
+- Payment.
+- PaymentTransaction.
+- PaymentReceipt.
+- FinancialAdjustment.
+
+### Other modules
+- AttendanceSession.
+- AttendanceRecord.
+- Announcement.
+- Notification.
+- NotificationPreference.
+- AcademicEvent.
+- SupportTicket.
+- SupportMessage.
+- SystemSetting.
+
+Add appropriate timestamps, status fields and ownership relationships.
+
+Use database transactions for critical operations such as payment processing, admissions conversion and result publication.
+
+Avoid storing sensitive information unnecessarily.
+
+---
+
+# 26. SECURITY REQUIREMENTS
+
+Security is a core requirement.
+
+Implement:
+
+- Password hashing using Argon2id or an equivalent secure algorithm.
+- Secure HTTP-only cookies for authentication.
+- Short-lived access tokens and protected refresh-token rotation.
+- Backend-enforced role-based access control.
+- Input validation using DTOs and Zod where appropriate.
+- Protection against SQL injection.
+- Rate limiting on sensitive endpoints.
+- CSRF protection where applicable.
+- Secure file upload validation.
+- File type and size restrictions.
+- Secure password reset.
+- Login attempt protection.
+- Audit logs for sensitive administrative actions.
+- Database backups.
+- Secure environment variable management.
+- HTTPS in production.
+- Restricted administrative access.
+
+Use least-privilege permissions.
+
+Student records, financial information and any future health-related information must be protected appropriately.
+
+Design with Ghana's Data Protection Act, 2012 (Act 843) and applicable institutional requirements in mind. The institution should review its data protection, consent, retention and privacy obligations before launch.
+
+Do not collect or expose patient medical records as part of the initial clinic website.
+
+---
+
+# 27. UI/UX DESIGN DIRECTION
+
+**THIS SECTION IS CRITICAL. FOLLOW THE ATTACHED UI MOCKUP.**
+
+I have attached a UI mockup showing the intended visual direction for the clinic website, nursing school website, desktop and mobile experiences, and student portal.
+
+**Study the attached mockup carefully before designing or implementing the frontend.** Use it as the primary visual reference for the product's design language.
+
+The mockup is a design reference, not a pixel-perfect template. Do not simply reproduce the exact screens. Instead, build a complete, consistent design system and extend the same level of design quality to every screen in the platform.
+
+I do not want a generic AI-generated dashboard, an outdated school management template or an interface that looks like it was assembled from unrelated UI components.
+
+The final interface must feel like a premium, professionally art-directed healthcare and education SaaS product.
+
+## 27.1. Understanding the attached mockup
+
+The attached mockup communicates the intended design across six important views.
+
+### A. Clinic desktop homepage
+
+The clinic homepage should use the mockup's premium healthcare landing-page direction.
+
+Important visual elements:
+
+- Deep emerald green hero section.
+- Strong, confident headline.
+- Concise supporting description.
+- High-quality healthcare photography.
+- Split hero composition, with text and imagery balanced across the layout.
+- Prominent appointment booking action.
+- Compact and clearly presented medical services.
+- Informative clinic introduction.
+- Clear contact and location information.
+
+The first impression should communicate professionalism, trust, cleanliness and quality healthcare.
+
+### B. Nursing school desktop homepage
+
+The school homepage should share the organisation's visual identity but have its own education-focused personality.
+
+Important visual elements:
+
+- Strong headline communicating the school's educational value.
+- Relevant nursing and student photography.
+- Clear course exploration and admissions actions.
+- Well-structured programme cards.
+- Programme information that is easy to scan.
+- Clear admissions information.
+- Visible access to the student portal.
+
+The school website should feel academic, modern, welcoming and credible.
+
+### C. Clinic mobile homepage
+
+The mobile clinic design shown in the mockup is not simply a smaller version of the desktop website.
+
+It uses a deliberately reorganised layout.
+
+Implement:
+
+- Compact mobile header.
+- Accessible navigation menu.
+- Vertically arranged hero section.
+- Readable headline and supporting text.
+- Appropriately cropped healthcare photography.
+- Prominent appointment action.
+- Vertically stacked services and information.
+- Comfortable spacing and touch targets.
+
+### D. Nursing school mobile homepage
+
+The school website must also have a deliberate mobile composition.
+
+Implement:
+
+- Compact mobile navigation.
+- Readable hero content.
+- Properly positioned nursing/student imagery.
+- Visible admissions and course actions.
+- Programme cards arranged for narrow screens.
+- Simple access to applicant and student services.
+- Forms that are comfortable to complete on a phone.
+
+### E. Student desktop dashboard
+
+The mockup shows a clean academic dashboard with a clear navigation structure and an organised content area.
+
+Use this as the direction for the student portal.
+
+Important elements:
+
+- A strong desktop sidebar.
+- Clear welcome section.
+- Student profile summary.
+- Compact academic summary metrics.
+- Course progress indicators.
+- Upcoming examination information.
+- Recent academic activity.
+- Useful student actions.
+
+The dashboard should prioritize the information students actually need. Do not fill it with decorative charts or unnecessary widgets.
+
+### F. Mobile examination result screen
+
+The mockup also demonstrates a focused mobile examination result experience.
+
+Implement a result page that:
+
+- Clearly presents the examination name.
+- Displays the score obtained.
+- Displays the total marks and percentage.
+- Clearly communicates pass or fail status.
+- Shows feedback where permitted.
+- Provides an obvious next action.
+- Remains easy to read and navigate on a phone.
+
+Do not overcrowd the mobile result screen.
+
+## 27.2. Overall visual identity
+
+The platform should follow this visual direction:
+
+- Modern.
+- Premium.
+- Minimal but not empty.
+- Professional.
+- Human and welcoming.
+- Clean and intentional layouts.
+- Strong typography.
+- Excellent spacing.
+- Clear visual hierarchy.
+- Subtle, purposeful animations.
+- Consistent design system.
+
+### Colour direction
+
+Use the attached mockup as the colour reference.
+
+The primary visual identity should use:
+
+- Deep emerald/teal as the main brand colour.
+- White for clean content surfaces.
+- Soft neutral backgrounds.
+- Restrained mint and green accents.
+- Carefully selected status colours.
+
+Avoid excessive colours and unnecessary gradients.
+
+Maintain sufficient contrast for readability and accessibility.
+
+### Typography
+
+Typography must look deliberate and professionally selected.
+
+- Use a contemporary sans-serif font family or a carefully selected font pairing.
+- Establish a consistent typography scale.
+- Use strong display headings for important sections.
+- Use readable body text.
+- Maintain consistent font weights and line heights.
+- Avoid random font sizes and inconsistent typography.
+
+Headings should have character and hierarchy without being unnecessarily oversized.
+
+### Spacing and layout
+
+Spacing is extremely important.
+
+- Use generous but controlled whitespace.
+- Maintain consistent alignment.
+- Use a deliberate grid system.
+- Avoid cramped content.
+- Avoid enormous empty sections.
+- Establish consistent content widths.
+- Use proper spacing between headings, paragraphs, cards and actions.
+
+The interface should feel carefully composed rather than automatically generated.
+
+### Photography and imagery
+
+Use high-quality, relevant photography.
+
+Appropriate imagery includes:
+
+- Healthcare professionals.
+- Clinical environments.
+- Nursing students.
+- Medical training.
+- Healthcare facilities.
+- Educational environments.
+
+Images must support the content.
+
+Use intentional image crops, aspect ratios and positioning. Avoid random stock photographs, irrelevant imagery and decorative images that add no value.
+
+### Cards, borders and surfaces
+
+Use:
+
+- Refined card layouts.
+- Subtle borders.
+- Restrained shadows.
+- Carefully chosen corner radii.
+- Consistent spacing.
+- Clear content separation.
+
+Not every section needs to be placed inside a card.
+
+Do not repeat the same card grid across every page. Vary the composition where appropriate.
+
+## 27.3. Clinic website design
+
+The clinic website should communicate:
+
+- Trust.
+- Professionalism.
+- Cleanliness.
+- Healthcare expertise.
+- Accessibility.
+- Compassion and reassurance.
+
+Use the mockup's split hero composition as a design reference.
+
+Place a strong headline and supporting description on one side, with relevant healthcare photography on the other.
+
+Use a deep emerald visual field for the hero, with carefully considered image framing and a prominent appointment action.
+
+Follow the hero with a compact, scannable service section.
+
+Include:
+
+- Informative clinic introduction.
+- Medical service presentation.
+- Department information.
+- Relevant staff information.
+- Contact details.
+- Location.
+- Opening hours.
+- Appointment actions.
+
+The clinic website must feel like a real healthcare organisation, not a generic corporate landing page.
+
+## 27.4. Nursing school website design
+
+The nursing school should share the organisation's visual language while maintaining its own education-focused character.
+
+The school website should feel:
+
+- Academic.
+- Professional.
+- Welcoming.
+- Modern.
+- Trustworthy.
+- Aspirational.
+
+Use a strong hero section that communicates the nursing education proposition.
+
+Include clear actions for:
+
+- Exploring programmes.
+- Viewing admission requirements.
+- Applying for admission.
+- Accessing the student portal.
+
+Present programmes in carefully structured layouts with useful information such as:
+
+- Qualification.
+- Programme duration.
+- Entry requirements.
+- Programme description.
+- Published fees where available.
+
+Make admissions information easy to discover.
+
+Student portal access must be clearly visible but must not be confused with public admissions or applicant tracking.
+
+## 27.5. Student portal design
+
+The student portal should follow the dashboard direction shown in the attached mockup.
+
+### Desktop
+
+Use:
+
+- A clear application shell.
+- Strong but unobtrusive sidebar.
+- Well-structured main content area.
+- Clear page heading.
+- Student welcome section.
+- Academic summary metrics.
+- Course progress.
+- Upcoming examinations.
+- Recent academic activity.
+- Useful student actions.
+
+The dashboard must prioritize important information.
+
+Do not add decorative charts simply to make the interface appear more sophisticated.
+
+### Mobile
+
+Replace the desktop sidebar with a thoughtful mobile navigation pattern.
+
+Reorganize dashboard content into a readable vertical layout.
+
+Course progress, examinations, results, learning materials and important actions must remain easy to find.
+
+## 27.6. Administration and lecturer dashboard design
+
+The administration dashboard should have:
+
+- Collapsible sidebar.
+- Clear navigation hierarchy.
+- Contextual page headers.
+- Useful overview metrics.
+- Well-designed data tables.
+- Search and filtering.
+- Clean forms.
+- Useful empty states.
+- Loading skeletons.
+- Confirmation dialogs for destructive actions.
+
+Do not copy the student dashboard layout blindly for every role.
+
+Administrators, admissions officers, finance officers, clinic staff and lecturers have different responsibilities.
+
+Give each role a workspace that prioritizes its own tasks and information.
+
+The design should remain consistent while the layout and content adapt to the role.
+
+## 27.7. Desktop, tablet and mobile requirements
+
+Desktop and mobile are equally important.
+
+Design them as separate experiences that belong to the same product.
+
+Tablet layouts must also be considered.
+
+### Desktop
+
+- Use screen width intelligently.
+- Establish clear content grids.
+- Use sensible maximum content widths.
+- Use sidebars and multi-column layouts only when they improve navigation or information scanning.
+- Avoid overly wide text lines.
+- Avoid oversized empty regions.
+- Ensure tables, dashboards and complex workflows remain easy to scan.
+
+### Tablet
+
+- Adapt navigation and columns intentionally.
+- Reflow cards and data layouts before they become cramped.
+- Keep forms and actions accessible.
+- Do not simply shrink desktop components.
+
+### Mobile
+
+- Design mobile-first, not as a compressed desktop layout.
+- Recompose hero sections vertically.
+- Use readable text and intentional image crops.
+- Use compact, accessible navigation.
+- Stack service and programme content cleanly.
+- Make forms comfortable to complete.
+- Use appropriate input sizes and clear validation messages.
+- Use a usable mobile menu or bottom navigation for authenticated portals where appropriate.
+- Make tables usable through responsive layouts, carefully selected columns or controlled horizontal scrolling where necessary.
+- Ensure examinations, course materials, results and payment flows work on mobile browsers.
+- Use comfortable touch targets.
+- Prevent horizontal overflow.
+- Avoid tiny text and cramped tables.
+- Ensure all controls are easy to operate using touch.
+
+Do not consider a page responsive merely because it technically fits on a phone.
+
+The layout must be intentionally redesigned for the available screen size.
+
+## 27.8. Interaction and motion
+
+Use subtle, purposeful interactions.
+
+Include:
+
+- Clear hover states.
+- Focus states.
+- Active states.
+- Selected states.
+- Disabled states.
+- Loading states.
+- Smooth but restrained menu transitions.
+- Useful dialog transitions.
+- Clear feedback when an action succeeds or fails.
+- Progress indicators where they help users understand a workflow.
+- Skeleton loading states for data-heavy pages.
+
+Do not animate every element.
+
+Avoid distracting motion, unnecessary parallax and animations that interfere with usability.
+
+Respect reduced-motion preferences.
+
+## 27.9. Design system and reusable components
+
+Create a reusable design system before building all pages.
+
+Define consistent design tokens for:
+
+- Primary, secondary and neutral colours.
+- Status colours.
+- Typography and font weights.
+- Spacing scale.
+- Layout widths.
+- Responsive breakpoints.
+- Border radii.
+- Borders and dividers.
+- Elevation and shadows.
+- Focus rings.
+- Transitions and motion.
+
+Create reusable components for:
+
+- Buttons and links.
+- Form fields.
+- Validation messages.
+- Cards and content panels.
+- Tables and pagination.
+- Dialogs and confirmation prompts.
+- Dropdowns and menus.
+- Tabs.
+- Badges and status indicators.
+- Navigation and breadcrumbs.
+- Alerts and notifications.
+- Empty states.
+- Loading skeletons.
+- Error states.
+- File upload controls.
+- Search and filter controls.
+
+Use shadcn/ui as a foundation where useful, but customize components to match the design system.
+
+Do not allow the application to look like an unmodified shadcn/ui starter template.
+
+## 27.10. Accessibility and visual quality
+
+- Use semantic HTML.
+- Support keyboard navigation.
+- Provide visible focus states.
+- Use accessible labels and descriptions for form controls.
+- Maintain readable text sizes.
+- Maintain sufficient contrast.
+- Do not communicate status using colour alone.
+- Respect reduced-motion settings.
+- Test key screens at realistic desktop, tablet and mobile viewport sizes.
+
+## 27.11. Design mistakes to avoid
+
+Do not use:
+
+- Generic AI-generated landing-page patterns.
+- Outdated school management dashboard templates.
+- Excessive gradients.
+- Unnecessary glassmorphism.
+- Overuse of rounded cards.
+- Excessive colours.
+- Generic dashboard layouts reused for every role.
+- Huge empty spaces.
+- Cramped layouts.
+- Random decorative icons.
+- Excessive shadows.
+- Repeated card grids for every section.
+- Weak typography.
+- Arbitrary font choices.
+- Inconsistent spacing and alignment.
+- Desktop layouts squeezed onto mobile screens.
+- Unnecessary animations.
+- Fake charts.
+- Decorative metrics that do not represent real data.
+
+I want a distinctive and polished interface, not something that immediately looks like an AI-generated template.
+
+## 27.12. Required UI review workflow
+
+Before considering any page complete:
+
+1. Compare the page against the attached mockup's visual direction.
+2. Check layout balance, spacing, typography, alignment and visual hierarchy.
+3. Review the page at desktop, tablet and mobile widths.
+4. Check all navigation, forms, buttons, menus, dialogs and interactive states.
+5. Verify loading, empty, error, success and permission-denied states.
+6. Check accessibility, keyboard interaction and readable contrast.
+7. Remove generic or repetitive layouts.
+8. Refine components that look unfinished or template-generated.
+9. Ensure the page uses the shared design tokens and reusable components.
+10. Confirm that the page is both visually polished and functionally complete.
+
+Do not consider a page finished merely because it renders correctly.
+
+It must also be visually polished, responsive, accessible and consistent with the overall product.
+
+**The attached mockup must remain available as a visual reference throughout frontend development.** Use it when designing and reviewing the clinic website, school website, student portal, administration dashboards and all mobile experiences.
+
+---
+
+# 28. FUNCTIONAL QUALITY REQUIREMENTS
+
+Every module must include:
+
+- Loading states.
+- Error states.
+- Empty states.
+- Success feedback.
+- Form validation.
+- Permission checks.
+- Responsive behavior.
+- Pagination where needed.
+- Search and filtering where appropriate.
+
+Every important action should provide meaningful feedback.
+
+Examples:
+- Successful payment.
+- Failed payment.
+- Application submitted.
+- Admission approved.
+- Material uploaded.
+- Examination submitted.
+- Result published.
+- Student account created.
+
+Do not silently fail.
+
+Do not use hardcoded dashboard numbers.
+
+Do not create buttons that do nothing.
+
+Do not simulate payment success.
+
+Do not bypass authentication for convenience.
+
+---
+
+# 29. TESTING REQUIREMENTS
+
+Create tests for critical workflows.
+
+## Authentication
+- User registration.
+- Login.
+- Logout.
+- Password reset.
+- Permission enforcement.
+
+## Admissions
+- Form purchase.
+- Payment verification.
+- Application submission.
+- Document uploads.
+- Admission approval.
+- Student account creation.
+
+## Academics
+- Programme creation.
+- Course creation.
+- Student enrolment.
+- Material upload.
+- Course progress.
+
+## Examinations
+- Examination creation.
+- Question management.
+- Student attempts.
+- Answer saving.
+- Automatic grading.
+- Manual grading.
+- Result publication.
+
+## Finance
+- Fee creation.
+- Payment verification.
+- Receipt generation.
+- Outstanding balance calculations.
+
+Use unit tests and integration tests. Add end-to-end tests for the most important student and administrator workflows.
+
+---
+
+# 30. DEVELOPMENT EXECUTION PLAN
+
+Do not attempt to generate the entire platform in one massive implementation step.
+
+Build incrementally using the following phases.
+
+### PHASE 1: Foundation
+- Initialize monorepo.
+- Configure Next.js.
+- Configure NestJS.
+- Configure PostgreSQL.
+- Configure Prisma.
+- Create initial database schema.
+- Configure authentication.
+- Implement roles and permissions.
+- Establish API communication.
+- Create shared design system based on the attached UI mockup.
+
+### PHASE 2: Public Websites
+- Clinic website.
+- School website.
+- CMS.
+- Contact forms.
+- Appointment requests.
+- Responsive desktop, tablet and mobile layouts.
+
+### PHASE 3: Admissions
+- Admission cycles.
+- Application forms.
+- Payment integration.
+- Document uploads.
+- Application tracking.
+- Admission administration.
+
+### PHASE 4: Student Management
+- Student registration.
+- Student profiles.
+- Academic sessions.
+- Programmes.
+- Semesters.
+- Courses.
+- Enrolments.
+
+### PHASE 5: LMS
+- Student dashboard.
+- Lecturer dashboard.
+- Course modules.
+- Topics.
+- Learning materials.
+- Progress tracking.
+
+### PHASE 6: Examinations
+- Question banks.
+- Examination creation.
+- Student examination interface.
+- Automatic grading.
+- Manual grading.
+- Results.
+
+### PHASE 7: Finance and Administration
+- Fee structures.
+- Student financial accounts.
+- Online payments.
+- Receipts.
+- Reports.
+- Administrative analytics.
+
+### PHASE 8: Additional Modules
+- Attendance.
+- Academic calendar.
+- Notifications.
+- Support tickets.
+- Digital student ID.
+- Academic documents.
+
+### PHASE 9: Quality Assurance
+- Security testing.
+- API testing.
+- End-to-end testing.
+- Mobile testing.
+- Performance optimization.
+- Deployment preparation.
+
+---
+
+# 31. DEPLOYMENT REQUIREMENTS
+
+Prepare the application for deployment on a Linux VPS.
+
+Requirements:
+- Production build for Next.js.
+- Production build for NestJS.
+- PostgreSQL deployment.
+- Nginx reverse proxy.
+- PM2 process management.
+- HTTPS configuration.
+- Environment variables.
+- Database migration commands.
+- Database backup strategy.
+- File storage configuration.
+- Error logging.
+- Health-check endpoints.
+
+Provide:
+- `.env.example` files.
+- Database migration instructions.
+- Initial administrator creation process.
+- Deployment documentation.
+- Backup and restore instructions.
+- API documentation.
+- Developer setup instructions.
+
+The application must not depend on development-only services or configurations.
+
+---
+
+# 32. IMPORTANT IMPLEMENTATION RULES FOR ANTIGRAVITY
+
+Follow these rules throughout development.
+
+1. Inspect the existing project before creating or replacing files.
+2. Maintain a clear project structure.
+3. Build reusable frontend components.
+4. Keep backend modules independent and modular.
+5. Define database relationships before implementing dependent modules.
+6. Use database migrations.
+7. Never expose secrets or credentials.
+8. Implement proper authorization on every protected backend endpoint.
+9. Validate all user input.
+10. Do not use mock API responses in production functionality.
+11. Do not hardcode programmes, academic sessions, fees or grading scales.
+12. Use actual database records throughout the application.
+13. Ensure that every frontend feature has a corresponding backend implementation.
+14. Do not leave unfinished buttons, forms or navigation links.
+15. Do not silently remove existing working functionality when modifying code.
+16. Run tests and resolve errors before marking a phase complete.
+17. Document important architectural decisions.
+18. Keep a development progress document showing completed modules, pending work and known issues.
+19. Use realistic seed data only for local development and clearly separate it from production data.
+20. Prioritize a reliable, maintainable application over rushing through the feature list.
+21. Keep the supplied UI mockup available as a visual reference throughout frontend development and use it when reviewing desktop, tablet and mobile screens.
+
+If a feature depends on an external provider, build the integration interface and configuration requirements, clearly document what credentials are needed, and do not pretend the integration is operational before it has been configured and tested.
+
+---
+
+# 33. FINAL EXPECTATION
+
+The final deliverable should be a complete digital ecosystem with:
+
+- A professional clinic website.
+- A professional nursing school website.
+- A functional online admission system.
+- Student registration and management.
+- Lecturer accounts and management.
+- A complete learning management system.
+- Course and topic management.
+- Learning material uploads and downloads.
+- Online examinations.
+- Automatic and manual grading.
+- Student results and academic records.
+- School fee and payment management.
+- Administrative dashboards.
+- Reporting and analytics.
+- Notifications and communication.
+- Secure role-based access.
+
+The architecture must allow the institution to launch with essential modules and progressively activate additional modules as needed.
+
+**The goal is not simply to create a website. The goal is to build a complete digital operating platform for the clinic and its nursing training institution.**
+
+**Powered by Crazy Tech Enterprise.**

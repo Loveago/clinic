@@ -1,0 +1,1992 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  CLINIC_ADMIN
+  SCHOOL_ADMIN
+  ADMISSIONS_OFFICER
+  REGISTRAR
+  FINANCE_OFFICER
+  LECTURER
+  EXAM_OFFICER
+  STUDENT
+  RECEPTIONIST
+  DOCTOR
+  NURSE
+  PHARMACIST
+  LAB_TECH
+  CASHIER
+  PATIENT
+}
+
+enum AppointmentStatus {
+  PENDING
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  RESCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  DECLINED
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  PAYMENT_PENDING
+  UNDER_REVIEW
+  AWAITING_DOCUMENTS
+  ACCEPTED
+  APPROVED
+  REJECTED
+  WAITLISTED
+  ADMISSION_ACCEPTED
+  REGISTRATION_PENDING
+  REGISTERED
+  ENROLLED
+}
+
+enum StudentStatus {
+  APPLICANT
+  ADMITTED
+  REGISTRATION_PENDING
+  ACTIVE
+  DEFERRED
+  SUSPENDED
+  WITHDRAWN
+  GRADUATED
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  ABANDONED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(STUDENT)
+  phone        String?
+  avatar       String?
+  staffId      String?  @unique // e.g. WNS/STAFF/001
+  department   String?
+  title        String?  // e.g. Dr., Prof., Nurse
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  studentProfile       Student?
+  lecturerProfile      LecturerProfile?
+  clinicStaffProfile   ClinicStaffProfile?
+  patientProfile       Patient?
+  lecturerCourses      Course[]             @relation("LecturerCourses")
+  courseAssignments    CourseLecturer[]
+  teachingSchedules    ClassSchedule[]
+  assignedAttendance   AttendanceSession[]
+  assignedAssignments  Assignment[]
+  supportTickets       SupportTicket[]
+  notifications        Notification[]
+}
+
+model ClinicService {
+  id           String            @id @default(uuid())
+  title        String
+  category     String
+  description  String
+  iconName     String
+  duration     String?
+  feeGHS       Float             @default(150.0)
+  featured     Boolean           @default(false)
+  isActive     Boolean           @default(true)
+  departmentId String?
+  department   ClinicDepartment? @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime          @default(now())
+  appointments Appointment[]
+}
+
+model ClinicDepartment {
+  id           String               @id @default(uuid())
+  name         String
+  description  String
+  headDoctor   String
+  room         String
+  iconName     String
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  services     ClinicService[]
+  staff        ClinicStaffProfile[]
+  appointments Appointment[]
+  queueEntries ClinicQueue[]
+}
+
+model MedicalStaff {
+  id            String   @id @default(uuid())
+  name          String
+  specialty     String
+  qualification String
+  bio           String
+  photoUrl      String
+  availableDays String
+  createdAt     DateTime @default(now())
+}
+
+model Appointment {
+  id             String              @id @default(uuid())
+  patientId      String?
+  patient        Patient?            @relation(fields: [patientId], references: [id])
+  patientName    String
+  patientPhone   String
+  patientEmail   String?
+  serviceId      String?
+  service        ClinicService?      @relation(fields: [serviceId], references: [id])
+  departmentId   String?
+  department     ClinicDepartment?   @relation(fields: [departmentId], references: [id])
+  departmentName String?
+  staffId        String?
+  staff          ClinicStaffProfile? @relation(fields: [staffId], references: [id])
+  preferredDate  String
+  preferredTime  String
+  endTime        String?
+  reason         String?
+  message        String?
+  status         AppointmentStatus   @default(PENDING)
+  internalNotes  String?
+  queueEntry     ClinicQueue?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([preferredDate])
+  @@index([patientId])
+  @@index([staffId])
+}
+
+model AcademicYear {
+  id        String     @id @default(uuid())
+  name      String     @unique // e.g. 2024/2025, 2025/2026
+  startDate String
+  endDate   String
+  isCurrent Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  semesters Semester[]
+}
+
+model Semester {
+  id             String         @id @default(uuid())
+  academicYearId String
+  academicYear   AcademicYear   @relation(fields: [academicYearId], references: [id])
+  name           String         // First Semester, Second Semester
+  startDate      String
+  endDate        String
+  isCurrent      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  courses        Course[]
+  registrations  CourseRegistration[]
+}
+
+model Department {
+  id          String            @id @default(uuid())
+  code        String            @unique // e.g. NUR, MID, PHM
+  name        String
+  description String?
+  programmes  Programme[]
+  courses     Course[]
+  lecturers   LecturerProfile[]
+}
+
+model Programme {
+  id            String        @id @default(uuid())
+  code          String        @unique // e.g. BNC, AND, SCT, RM
+  name          String
+  description   String
+  duration      String
+  qualification String
+  fee           Float         // in GHS
+  requirements  String
+  departmentId  String?
+  department    Department?   @relation(fields: [departmentId], references: [id])
+  status        String        @default("Active")
+  createdAt     DateTime      @default(now())
+
+  courses             Course[]
+  students            Student[]
+  applications        Application[]
+  programmeAdmissions ProgrammeAdmission[]
+  cohorts             Cohort[]
+  feeStructures       FeeStructure[]
+}
+
+model AdmissionPeriod {
+  id                  String               @id @default(uuid())
+  name                String               @unique // e.g. 2025/2026 Main Intake
+  academicYear        String               // e.g. 2025/2026
+  semester            String               @default("First Semester")
+  openDate            String
+  closeDate           String
+  applicationFeeGHS   Float                @default(150.0)
+  maxApplications     Int?
+  isActive            Boolean              @default(true)
+  requiredDocsJson    String?              // JSON array of required doc titles
+  instructions        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  programmeAdmissions ProgrammeAdmission[]
+  applications        Application[]
+  feeStructures       FeeStructure[]
+}
+
+model ProgrammeAdmission {
+  id                String          @id @default(uuid())
+  admissionPeriodId String
+  admissionPeriod   AdmissionPeriod @relation(fields: [admissionPeriodId], references: [id], onDelete: Cascade)
+  programmeId       String
+  programme         Programme       @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  isOpen            Boolean         @default(true)
+  quota             Int?
+  entryRequirements String?
+  feeOverrideGHS    Float?
+
+  @@unique([admissionPeriodId, programmeId])
+}
+
+model Application {
+  id                   String                @id @default(uuid())
+  referenceNumber      String                @unique
+  admissionPeriodId    String?
+  admissionPeriod      AdmissionPeriod?      @relation(fields: [admissionPeriodId], references: [id])
+  applicantName        String
+  applicantEmail       String
+  applicantPhone       String
+  dateOfBirth          String
+  gender               String
+  nationality          String                @default("Ghanaian")
+  isInternational      Boolean               @default(false)
+  address              String
+  ghanaPostGps         String?
+  previousSchool       String
+  examGrades           String
+  programmeId          String
+  programme            Programme             @relation(fields: [programmeId], references: [id])
+  status               ApplicationStatus     @default(SUBMITTED)
+  documentsUrl         String?
+  reviewNotes          String?
+  assignedReviewerId   String?
+  assignedReviewerName String?
+  feePaid              Boolean               @default(false)
+  decisionDate         DateTime?
+  admissionLetter      String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  payments             Payment[]
+  documents            ApplicationDocument[]
+  reviews              ApplicationReview[]
+  offer                AdmissionOffer?
+
+  @@index([admissionPeriodId])
+  @@index([programmeId])
+  @@index([status])
+}
+
+model ApplicationDocument {
+  id                 String      @id @default(uuid())
+  applicationId      String
+  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  title              String
+  category           String      @default("ACADEMIC") // ACADEMIC, IDENTITY, PHOTO, OTHER
+  fileUrl            String
+  fileName           String?
+  fileType           String      @default("PDF")
+  fileSize           Int?
+  verificationStatus String      @default("PENDING") // PENDING, VERIFIED, REJECTED, REQUESTED
+  verifiedBy         String?
+  notes              String?
+  uploadedAt         DateTime    @default(now())
+
+  @@index([applicationId])
+}
+
+model ApplicationReview {
+  id             String      @id @default(uuid())
+  applicationId  String
+  application    Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  previousStatus String?
+  newStatus      String
+  reviewerId     String?
+  reviewerName   String
+  action         String      // STATUS_CHANGE, NOTE, ASSIGN_REVIEWER, REQUEST_DOCUMENTS
+  reason         String?
+  internalNote   String?
+  createdAt      DateTime    @default(now())
+
+  @@index([applicationId])
+}
+
+model AdmissionOffer {
+  id                 String      @id @default(uuid())
+  applicationId      String      @unique
+  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  admissionReference String      @unique
+  programmeId        String
+  academicYear       String
+  semester           String      @default("First Semester")
+  conditions         String?
+  acceptanceDeadline String
+  status             String      @default("ISSUED") // ISSUED, ACCEPTED, DECLINED, EXPIRED
+  issuedBy           String?
+  issuedAt           DateTime    @default(now())
+  respondedAt        DateTime?
+  studentId          String?
+}
+
+model Cohort {
+  id           String    @id @default(uuid())
+  name         String    @unique // e.g. NUR-2025-A
+  programmeId  String
+  programme    Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  academicYear String
+  semester     String    @default("First Semester")
+  level        String    @default("Level 100")
+  capacity     Int?
+  createdAt    DateTime  @default(now())
+  students     Student[]
+}
+
+model SchoolSettings {
+  id                        String   @id @default("default")
+  institutionName           String   @default("WellLife Nursing & Midwifery Training College")
+  institutionAddress        String   @default("Plot 14, Independence Avenue, Ridge, Accra, Ghana")
+  institutionPhone          String   @default("+233 30 278 4412")
+  institutionEmail          String   @default("admissions@welllife.edu.gh")
+  studentIdFormat           String   @default("WNS/GH/{YEAR}/{SEQ}")
+  studentIdSeq              Int      @default(100)
+  registrationChecklistJson String?
+  updatedAt                 DateTime @updatedAt
+}
+
+model Student {
+  id                        String         @id @default(uuid())
+  studentId                 String         @unique // e.g. WNS/2025/001
+  userId                    String         @unique
+  user                      User           @relation(fields: [userId], references: [id])
+  programmeId               String
+  programme                 Programme      @relation(fields: [programmeId], references: [id])
+  cohortId                  String?
+  cohort                    Cohort?        @relation(fields: [cohortId], references: [id])
+  level                     String         @default("Level 100") // Level 100, Level 200, Level 300, Level 400
+  intake                    String         @default("2025/2026 Cohort")
+  academicYear              String         @default("2025/2026")
+  currentSemester           String         @default("First Semester")
+  status                    StudentStatus  @default(ACTIVE)
+  admissionDate             DateTime       @default(now())
+  admissionReference        String?
+  dateOfBirth               String?
+  gender                    String?
+  nationality               String         @default("Ghanaian")
+  residentialAddress        String?
+  ghanaPostGps              String?
+  cgpa                      Float          @default(3.85)
+  emergencyPhone            String?
+  emergencyContact          String?
+  registrationChecklistJson String?
+  registrationCompletedAt   DateTime?
+
+  enrollments               CourseEnrollment[]
+  registrations             CourseRegistration[]
+  examAttempts              ExamAttempt[]
+  topicProgress             TopicProgress[]
+  fees                      StudentFee[]
+  invoices                  Invoice[]
+  payments                  Payment[]
+  supportTickets            SupportTicket[]
+  attendanceRecords         AttendanceRecord[]
+  assignments               AssignmentSubmission[]
+  documents                 StudentDocument[]
+  caResults                 ContinuousAssessment[]
+  guardians                 StudentGuardian[]
+  statusHistory             StudentStatusHistory[]
+  discounts                 FeeDiscount[]
+  paymentPlans              PaymentPlan[]
+  componentScores           GradebookComponentScore[]
+}
+
+model StudentGuardian {
+  id           String  @id @default(uuid())
+  studentId    String
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String
+  phone        String
+  email        String?
+  address      String?
+  isEmergency  Boolean @default(true)
+
+  @@index([studentId])
+}
+
+model StudentStatusHistory {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  changedBy      String?
+  createdAt      DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model StudentDocument {
+  id                 String    @id @default(uuid())
+  studentId          String
+  student            Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title              String    // e.g. WASSCE Certificate, Birth Certificate, NHIS Card
+  category           String    @default("ACADEMIC") // ADMISSION, IDENTITY, ACADEMIC, MEDICAL, OTHER
+  fileUrl            String
+  fileType           String    @default("PDF")
+  verificationStatus String    @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  expiryDate         String?
+  notes              String?
+  uploadedAt         DateTime  @default(now())
+}
+
+model Course {
+  id             String         @id @default(uuid())
+  code           String         @unique // e.g. NUR101, ANA102
+  title          String
+  description    String
+  creditHours    Int            @default(3)
+  programmeId    String
+  programme      Programme      @relation(fields: [programmeId], references: [id])
+  departmentId   String?
+  department     Department?    @relation(fields: [departmentId], references: [id])
+  lecturerId     String?
+  lecturer       User?          @relation("LecturerCourses", fields: [lecturerId], references: [id])
+  semesterId     String?
+  semesterRel    Semester?      @relation(fields: [semesterId], references: [id])
+  semester       String         @default("First Semester")
+  level          String         @default("Level 100")
+  isElective     Boolean        @default(false)
+  status         String         @default("ACTIVE")
+  maxCapacity    Int?
+  thumbnail      String?
+  prerequisites  String?
+  createdAt      DateTime       @default(now())
+
+  enrollments          CourseEnrollment[]
+  registrations        CourseRegistration[]
+  courseLecturers      CourseLecturer[]
+  prerequisitesList    CoursePrerequisite[]   @relation("CoursePrerequisites")
+  requiredForCourses   CoursePrerequisite[]   @relation("PrerequisiteFor")
+  modules              CourseModule[]
+  exams                Examination[]
+  materials            LearningMaterial[]
+  schedules            ClassSchedule[]
+  attendance           AttendanceSession[]
+  assignments          Assignment[]
+  caResults            ContinuousAssessment[]
+  assessmentComponents AssessmentComponent[]
+  announcements        Announcement[]
+}
+
+model ClassSchedule {
+  id          String   @id @default(uuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturerId  String?
+  lecturer    User?    @relation(fields: [lecturerId], references: [id])
+  semesterId  String?
+  cohortId    String?
+  sessionType String   @default("LECTURE")
+  dayOfWeek   String   // Monday, Tuesday, Wednesday, Thursday, Friday
+  startTime   String   // 08:00 AM
+  endTime     String   // 10:00 AM
+  venue       String   // Skills Lab A, Lecture Hall 2
+  room        String?
+}
+
+model CourseRegistration {
+  id             String    @id @default(uuid())
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semesterId     String?
+  semester       Semester? @relation(fields: [semesterId], references: [id])
+  status         String    @default("APPROVED") // PENDING, APPROVED, DROPPED
+  approvalStatus String    @default("APPROVED")
+  approvedById   String?
+  approvedAt     DateTime?
+  registeredAt   DateTime  @default(now())
+
+  @@unique([studentId, courseId])
+}
+
+model CourseEnrollment {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id])
+  courseId        String
+  course          Course   @relation(fields: [courseId], references: [id])
+  progressPercent Int      @default(0)
+  status          String   @default("ENROLLED")
+  enrolledAt      DateTime @default(now())
+
+  @@unique([studentId, courseId])
+}
+
+model CourseModule {
+  id         String        @id @default(uuid())
+  courseId   String
+  course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title      String
+  orderIndex Int           @default(1)
+  topics     CourseTopic[]
+}
+
+model CourseTopic {
+  id              String             @id @default(uuid())
+  moduleId        String
+  module          CourseModule       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  pdfUrl          String?
+  durationMinutes Int                @default(45)
+  orderIndex      Int                @default(1)
+  
+  progress        TopicProgress[]
+  materials       LearningMaterial[]
+}
+
+model TopicProgress {
+  id          String      @id @default(uuid())
+  studentId   String
+  student     Student     @relation(fields: [studentId], references: [id])
+  topicId     String
+  topic       CourseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  completed   Boolean     @default(false)
+  completedAt DateTime?
+
+  @@unique([studentId, topicId])
+}
+
+model LearningMaterial {
+  id                String           @id @default(uuid())
+  courseId          String
+  course            Course           @relation(fields: [courseId], references: [id])
+  topicId           String?
+  topic             CourseTopic?     @relation(fields: [topicId], references: [id])
+  title             String
+  description       String?
+  programmeId       String?
+  academicYear      String?          @default("2025/2026")
+  semester          String?          @default("First Semester")
+  level             String?          @default("Level 100")
+  category          String?
+  fileType          String           @default("PDF") // PDF only
+  fileName          String?
+  fileUrl           String
+  filePath          String?
+  fileSize          String
+  pdfVersion        Int              @default(1)
+  contentHash       String?
+  pageCount         Int              @default(0)
+  extractedTextJson String?
+  processingStatus  String           @default("PENDING") // PENDING, EXTRACTING_PDF, EXTRACTING_TOPICS, GENERATING_NOTES, GENERATING_QUESTIONS, SAVING_RESULTS, COMPLETED, FAILED, REVIEW_REQUIRED, REQUIRES_REVIEW
+  processedAt       DateTime?
+  status            String           @default("DRAFT")    // DRAFT, PUBLISHED, ARCHIVED
+  isDownloadable    Boolean          @default(true)
+  uploadedById      String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  processingJobs    PDFProcessingJob[]
+  extractedTopics   ExtractedTopic[]
+
+  @@index([courseId])
+  @@index([status])
+  @@index([contentHash])
+}
+
+model AIProviderConfig {
+  id                String    @id @default(uuid())
+  displayName       String
+  apiBaseUrl        String    @default("https://api.openai.com")
+  apiEndpoint       String    @default("/v1/chat/completions")
+  encryptedApiKey   String
+  keyLast4          String
+  modelName         String    @default("gpt-4o-mini")
+  maxOutputTokens   Int       @default(4096)
+  temperature       Float     @default(0.2)
+  timeoutMs         Int       @default(45000)
+  supportsJsonMode  Boolean   @default(true)
+  customHeadersJson String?
+  isActive          Boolean   @default(true)
+  isDefault         Boolean   @default(false)
+  lastTestStatus    String?   // OK, ERROR
+  lastTestMessage   String?
+  lastTestedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model PDFProcessingJob {
+  id                  String           @id @default(uuid())
+  materialId          String
+  material            LearningMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  pdfVersion          Int              @default(1)
+  contentHash         String?
+  idempotencyKey      String?          @unique
+  status              String           @default("PENDING") // PENDING, EXTRACTING_PDF, EXTRACTING_TOPICS, GENERATING_NOTES, GENERATING_QUESTIONS, SAVING_RESULTS, COMPLETED, FAILED, REVIEW_REQUIRED
+  progress            Int              @default(0)
+  currentStage        String?
+  completedStagesJson String?
+  isRegeneration      Boolean          @default(false)
+  regenerationScope   String?          // ALL, TOPICS, NOTES, QUESTIONS
+  providerId          String?
+  providerName        String?
+  apiBaseUrl          String?
+  modelName           String?
+  inputTokens         Int              @default(0)
+  outputTokens        Int              @default(0)
+  totalTokens         Int              @default(0)
+  estimatedCostUsd    Float?
+  errorMessage        String?
+  isScannedPdf        Boolean          @default(false)
+  ocrUsed             Boolean          @default(false)
+  pagesProcessed      Int              @default(0)
+  totalPages          Int              @default(0)
+  attempts            Int              @default(0)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime         @default(now())
+
+  @@index([materialId])
+  @@index([materialId, pdfVersion])
+}
+
+model ExtractedTopic {
+  id            String           @id @default(uuid())
+  materialId    String
+  material      LearningMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  courseId      String
+  programmeId   String?
+  level         String?          @default("Level 100")
+  semester      String?          @default("First Semester")
+  title         String
+  description   String?
+  summary       String?
+  contentJson   String?          // JSON: { introduction, learningObjectives[], mainExplanation, keyConcepts[], definitions[], keyPoints[], summary, revisionNotes }
+  rawText       String?
+  pageStart     Int              @default(1)
+  pageEnd       Int              @default(1)
+  orderIndex    Int              @default(1)
+  confidence    Float            @default(0.95)
+  needsReview   Boolean          @default(false)
+  reviewNotes   String?
+  isDuplicate   Boolean          @default(false)
+  status        String           @default("DRAFT") // DRAFT, APPROVED, PUBLISHED
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  subtopics     TopicSubtopic[]
+  questions     TopicQuestion[]
+  assessments   TopicAssessment[]
+  masteries     StudentTopicMastery[]
+
+  @@index([materialId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model TopicSubtopic {
+  id         String         @id @default(uuid())
+  topicId    String
+  topic      ExtractedTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  title      String
+  summary    String?
+  pageStart  Int            @default(1)
+  pageEnd    Int            @default(1)
+  orderIndex Int            @default(1)
+
+  @@index([topicId])
+}
+
+model TopicQuestion {
+  id                       String                    @id @default(uuid())
+  topicId                  String
+  topic                    ExtractedTopic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  courseId                 String
+  questionType             String                    // MCQ, TRUE_FALSE, SHORT_ANSWER, FILL_BLANK, MATCHING, SCENARIO
+  difficulty               String                    @default("MEDIUM") // EASY, MEDIUM, DIFFICULT
+  questionText             String
+  optionsJson              String?                   // JSON options array or matching pairs [{ left, right }]
+  correctAnswer            String
+  acceptedAlternativesJson String?
+  caseSensitive            Boolean                   @default(false)
+  partialCredit            Boolean                   @default(true)
+  negativeMarks            Float                     @default(0)
+  markingGuide             String?
+  rubricJson               String?
+  expectedAnswer           String?
+  requiredConceptsJson     String?
+  criticalErrorsJson       String?
+  explanation              String?
+  marks                    Int                       @default(2)
+  pageRef                  String?
+  status                   String                    @default("DRAFT") // DRAFT, APPROVED, REJECTED, PUBLISHED, ARCHIVED
+  isAiGenerated            Boolean                   @default(true)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  assessmentRefs TopicAssessmentQuestion[]
+  studentAnswers StudentTopicAnswer[]
+
+  @@index([topicId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model TopicAssessment {
+  id                             String                    @id @default(uuid())
+  courseId                       String
+  topicId                        String?
+  topic                          ExtractedTopic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  topicIdsJson                   String?                   // JSON array of included topic IDs
+  title                          String
+  assessmentType                 String                    @default("TOPIC_QUIZ") // TOPIC_QUIZ, COURSE_ASSESSMENT, REVISION_TEST, PRACTICE_EXAM, TIMED_ASSESSMENT
+  instructions                   String?
+  startDate                      String?
+  endDate                        String?
+  durationMinutes                Int                       @default(20)
+  totalMarks                     Int                       @default(20)
+  passMark                       Int                       @default(50)
+  maxAttempts                    Int                       @default(3)
+  randomizeQuestions             Boolean                   @default(true)
+  randomizeOptions               Boolean                   @default(true)
+  allowReview                    Boolean                   @default(true)
+  showExplanations               Boolean                   @default(true)
+  answerKeyReleaseAt             DateTime?
+  requireVerificationBeforePublish Boolean                 @default(false)
+  status                         String                    @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  createdAt                      DateTime                  @default(now())
+  updatedAt                      DateTime                  @updatedAt
+
+  questions          TopicAssessmentQuestion[]
+  attempts           TopicAssessmentAttempt[]
+
+  @@index([courseId])
+  @@index([topicId])
+  @@index([status])
+}
+
+model TopicAssessmentQuestion {
+  id            String          @id @default(uuid())
+  assessmentId  String
+  assessment    TopicAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      TopicQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  orderIndex    Int             @default(1)
+  marksOverride Int?
+
+  @@unique([assessmentId, questionId])
+}
+
+model TopicAssessmentAttempt {
+  id                          String               @id @default(uuid())
+  assessmentId                String
+  assessment                  TopicAssessment      @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  studentId                   String
+  attemptNumber               Int                  @default(1)
+  status                      String               @default("IN_PROGRESS") // IN_PROGRESS, SUBMITTED, NEEDS_MANUAL_GRADING, GRADED
+  evaluationStatus            String               @default("PENDING") // PENDING, COMPLETED, FAILED, NEEDS_VERIFICATION
+  retryCount                  Int                  @default(0)
+  errorMessage                String?
+  idempotencyKey              String?              @unique
+  evaluationDetailsJson       String?
+  revisionRecommendationsJson String?
+  autoGradedAt                DateTime?
+  startedAt                   DateTime             @default(now())
+  submittedAt                 DateTime?
+  expiresAt                   DateTime?
+  durationSeconds             Int                  @default(0)
+  autoScore                   Float                @default(0)
+  manualScore                 Float                @default(0)
+  totalScore                  Float                @default(0)
+  maxScore                    Float                @default(0)
+  percentage                  Float                @default(0)
+  passed                      Boolean              @default(false)
+
+  answers                     StudentTopicAnswer[]
+
+  @@index([assessmentId])
+  @@index([studentId])
+}
+
+model StudentTopicAnswer {
+  id                          String                 @id @default(uuid())
+  attemptId                   String
+  attempt                     TopicAssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId                  String
+  question                    TopicQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText                  String?
+  selectedOption              String?
+  isCorrect                   Boolean?
+  marksAwarded                Float                  @default(0)
+  maxMarks                    Float                  @default(2)
+  needsManualReview           Boolean                @default(false)
+  graderFeedback              String?
+  gradedAt                    DateTime?
+  evaluationStatus            String                 @default("PENDING") // PENDING, COMPLETED, FAILED, NEEDS_VERIFICATION
+  retryCount                  Int                    @default(0)
+  errorMessage                String?
+  idempotencyKey              String?                @unique
+  evaluationDetailsJson       String?
+  revisionRecommendationsJson String?
+  autoGradedAt                DateTime?
+
+  @@unique([attemptId, questionId])
+}
+
+model StudentTopicMastery {
+  id             String         @id @default(uuid())
+  studentId      String
+  topicId        String
+  topic          ExtractedTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  opened         Boolean        @default(false)
+  completed      Boolean        @default(false)
+  completedAt    DateTime?
+  attemptsCount  Int            @default(0)
+  bestScore      Float          @default(0)
+  latestScore    Float          @default(0)
+  averageScore   Float          @default(0)
+  masteryStatus  String         @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, NEEDS_REVISION, MASTERED
+  lastActivityAt DateTime       @default(now())
+
+  @@unique([studentId, topicId])
+  @@index([studentId])
+}
+
+model StudentLearningActivity {
+  id           String   @id @default(uuid())
+  studentId    String
+  courseId     String?
+  topicId      String?
+  assessmentId String?
+  activityType String   // OPENED_TOPIC, COMPLETED_TOPIC, STARTED_QUIZ, SUBMITTED_QUIZ, VIEWED_PDF
+  details      String?
+  createdAt    DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model Assignment {
+  id                   String                 @id @default(uuid())
+  courseId             String
+  course               Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturerId           String
+  lecturer             User                   @relation(fields: [lecturerId], references: [id])
+  title                String
+  description          String
+  maxMarks             Int                    @default(100)
+  weighting            Int                    @default(20) // e.g. 20% of continuous assessment
+  deadline             String
+  fileUrl              String?
+  attachmentUrl        String?
+  status               String                 @default("PUBLISHED") // DRAFT, PUBLISHED, CLOSED
+  allowLate            Boolean                @default(true)
+  allowResubmission    Boolean                @default(false)
+  allowedFormats       String?
+  topicId              String?
+  cohortId             String?
+  rubricJson           String?
+  expectedAnswer       String?
+  requiredConceptsJson String?
+  criticalErrorsJson   String?
+  answerKeyReleaseAt   DateTime?
+  createdAt            DateTime               @default(now())
+
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id                          String     @id @default(uuid())
+  assignmentId                String
+  assignment                  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId                   String
+  student                     Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileUrl                     String
+  notes                       String?
+  score                       Float?
+  feedback                    String?
+  status                      String     @default("SUBMITTED") // SUBMITTED, GRADED, RETURNED
+  isGraded                    Boolean    @default(false)
+  isLate                      Boolean    @default(false)
+  gradedById                  String?
+  gradedAt                    DateTime?
+  rubricJson                  String?
+  evaluationStatus            String     @default("PENDING") // PENDING, COMPLETED, FAILED, NEEDS_VERIFICATION
+  retryCount                  Int        @default(0)
+  errorMessage                String?
+  idempotencyKey              String?    @unique
+  evaluationDetailsJson       String?
+  revisionRecommendationsJson String?
+  autoGradedAt                DateTime?
+  submittedAt                 DateTime   @default(now())
+
+  @@unique([assignmentId, studentId])
+}
+
+model AttendanceSession {
+  id          String             @id @default(uuid())
+  courseId    String
+  course      Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturerId  String
+  lecturer    User               @relation(fields: [lecturerId], references: [id])
+  semesterId  String?
+  date        String
+  title       String
+  sessionType String             @default("Lecture") // Lecture, Clinical Ward, Lab
+  venue       String?
+  isLocked    Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+
+  records     AttendanceRecord[]
+}
+
+model AttendanceRecord {
+  id          String            @id @default(uuid())
+  sessionId   String
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status      AttendanceStatus  @default(PRESENT)
+  notes       String?
+  recordedAt  DateTime          @default(now())
+
+  @@unique([sessionId, studentId])
+}
+
+model ExaminationPeriod {
+  id                 String        @id @default(uuid())
+  title              String
+  academicYearId     String?
+  semesterId         String?
+  programmeId        String?
+  startDate          DateTime
+  endDate            DateTime
+  instructions       String?
+  status             String        @default("DRAFT") // DRAFT, ACTIVE, CONCLUDED, PUBLISHED
+  resultsPublishedAt DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  examinations       Examination[]
+
+  @@index([status])
+  @@index([semesterId])
+}
+
+model Examination {
+  id                               String               @id @default(uuid())
+  courseId                         String
+  course                           Course               @relation(fields: [courseId], references: [id])
+  periodId                         String?
+  period                           ExaminationPeriod?   @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  title                            String
+  examType                         String               @default("END_OF_SEMESTER") // QUIZ, MID_SEMESTER, END_OF_SEMESTER, PRACTICAL, RESIT, SUPPLEMENTARY
+  academicYearId                   String?
+  semesterId                       String?
+  cohortId                         String?
+  instructions                     String
+  venue                            String               @default("CBT Lab & Online Portal")
+  durationMinutes                  Int                  @default(45)
+  totalMarks                       Int                  @default(100)
+  passMark                         Int                  @default(50)
+  scheduledDate                    String
+  scheduledTime                    String
+  startTime                        DateTime?
+  endTime                          DateTime?
+  mode                             String               @default("ONLINE") // ONLINE, IN_PERSON
+  randomizeQuestions               Boolean              @default(false)
+  randomizeOptions                 Boolean              @default(false)
+  selectionMode                    String               @default("FIXED") // FIXED, RANDOM_BANK
+  publicationMode                  String               @default("IMMEDIATE") // IMMEDIATE, SCHEDULED, AFTER_PERIOD
+  publishAt                        DateTime?
+  requireFinancialClearance        Boolean              @default(false)
+  integrityPolicyJson              String?
+  maxRetakes                       Int                  @default(1)
+  status                           String               @default("UPCOMING") // UPCOMING, ACTIVE, CONCLUDED
+  isPublished                      Boolean              @default(true)
+  allowReview                      Boolean              @default(true)
+  showExplanations                 Boolean              @default(true)
+  answerKeyReleaseAt               DateTime?
+  requireVerificationBeforePublish Boolean              @default(false)
+  createdAt                        DateTime             @default(now())
+
+  sections                         ExaminationSection[]
+  questions                        Question[]
+  attempts                         ExamAttempt[]
+
+  @@index([periodId])
+  @@index([courseId])
+}
+
+model ExaminationSection {
+  id             String      @id @default(uuid())
+  examId         String
+  exam           Examination @relation(fields: [examId], references: [id], onDelete: Cascade)
+  title          String
+  instructions   String?
+  orderIndex     Int         @default(0)
+  marksAllocated Float       @default(0)
+  questionCount  Int         @default(0)
+  selectionRule  String      @default("FIXED") // FIXED, RANDOM
+
+  questions      Question[]
+
+  @@index([examId])
+}
+
+model Question {
+  id                       String              @id @default(uuid())
+  examId                   String
+  exam                     Examination         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  sectionId                String?
+  section                  ExaminationSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  topicQuestionId          String?
+  orderIndex               Int                 @default(1)
+  questionType             String              @default("MCQ") // MCQ, TRUE_FALSE, SHORT_ANSWER, FILL_BLANK, MATCHING, SCENARIO
+  difficulty               String              @default("MEDIUM") // EASY, MEDIUM, DIFFICULT
+  topicTitle               String?
+  text                     String
+  optionsJson              String              // JSON string array of options: ["Option A", "Option B", ...]
+  correctAnswer            String
+  acceptedAlternativesJson String?
+  caseSensitive            Boolean             @default(false)
+  partialCredit            Boolean             @default(true)
+  negativeMarks            Float               @default(0)
+  rubricJson               String?
+  expectedAnswer           String?
+  requiredConceptsJson     String?
+  criticalErrorsJson       String?
+  explanation              String?
+  marks                    Int                 @default(4)
+
+  answers                  ExamAnswer[]
+
+  @@index([examId])
+  @@index([sectionId])
+}
+
+model ExamAttempt {
+  id                          String                   @id @default(uuid())
+  examId                      String
+  exam                        Examination              @relation(fields: [examId], references: [id])
+  studentId                   String
+  student                     Student                  @relation(fields: [studentId], references: [id])
+  attemptNumber               Int                      @default(1)
+  score                       Int                      @default(0)
+  totalQuestions              Int                      @default(0)
+  correctCount                Int                      @default(0)
+  percentage                  Int                      @default(0)
+  status                      String                   @default("SUBMITTED") // IN_PROGRESS, SUBMITTED, GRADED
+  answersJson                 String                   // JSON string mapping questionId to answer
+  assignedPaperJson           String?
+  flaggedQuestionsJson        String?
+  accessToken                 String?
+  integrityEventsCount        Int                      @default(0)
+  startedAt                   DateTime                 @default(now())
+  expiresAt                   DateTime?
+  lastSavedAt                 DateTime?
+  evaluationStatus            String                   @default("PENDING") // PENDING, COMPLETED, FAILED, NEEDS_VERIFICATION
+  retryCount                  Int                      @default(0)
+  errorMessage                String?
+  idempotencyKey              String?                  @unique
+  evaluationDetailsJson       String?
+  revisionRecommendationsJson String?
+  autoGradedAt                DateTime?
+  submittedAt                 DateTime?                @default(now())
+
+  answers                     ExamAnswer[]
+  activityLogs                ExaminationActivityLog[]
+
+  @@index([examId, studentId])
+}
+
+model ExamAnswer {
+  id               String      @id @default(uuid())
+  attemptId        String
+  attempt          ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText       String?
+  selectedOption   String?
+  isFlagged        Boolean     @default(false)
+  isCorrect        Boolean?
+  marksAwarded     Float?
+  maxMarks         Float       @default(0)
+  evaluationStatus String      @default("PENDING") // PENDING, COMPLETED, FAILED
+  feedback         String?
+  savedAt          DateTime    @default(now())
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+}
+
+model ExaminationActivityLog {
+  id          String      @id @default(uuid())
+  attemptId   String
+  attempt     ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  eventType   String      // TAB_SWITCH, FULLSCREEN_EXIT, COPY_ATTEMPT, FOCUS_LOST, HEARTBEAT, START, AUTOSAVE, SUBMIT, AUTO_EXPIRED
+  detailsJson String?
+  createdAt   DateTime    @default(now())
+
+  @@index([attemptId])
+}
+
+model ContinuousAssessment {
+  id            String    @id @default(uuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId      String
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semesterId    String?
+  caScore       Float     @default(0) // out of 30 or 40
+  examScore     Float     @default(0) // out of 70 or 60
+  totalScore    Float     @default(0) // out of 100
+  grade         String    @default("A") // A, B+, B, C+, C, D, F
+  gpaPoint      Float     @default(4.0)
+  status        String    @default("DRAFT") // DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, PUBLISHED, RETURNED
+  isApproved    Boolean   @default(true)
+  isPublished   Boolean   @default(true)
+  submittedById String?
+  submittedAt   DateTime?
+  approvedById  String?
+  approvedAt    DateTime?
+  publishedAt   DateTime?
+  remarks       String?
+  semester      String    @default("First Semester")
+  academicYear  String    @default("2025/2026")
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([studentId, courseId])
+}
+
+model FeeCategory {
+  id          String             @id @default(uuid())
+  code        String             @unique
+  name        String
+  description String?
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  items       FeeStructureItem[]
+  invoiceItems InvoiceItem[]
+}
+
+model FeeStructure {
+  id                String             @id @default(uuid())
+  name              String
+  programmeId       String
+  programme         Programme          @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  academicYear      String             @default("2025/2026")
+  semester          String             @default("First Semester")
+  level             String             @default("Level 100")
+  studentCategory   String             @default("ALL") // NEW, CONTINUING, ALL
+  admissionPeriodId String?
+  admissionPeriod   AdmissionPeriod?   @relation(fields: [admissionPeriodId], references: [id])
+  version           Int                @default(1)
+  effectiveDate     String
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  items             FeeStructureItem[]
+  invoices          Invoice[]
+
+  @@index([programmeId, academicYear, semester, level])
+}
+
+model FeeStructureItem {
+  id             String       @id @default(uuid())
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  feeCategoryId  String
+  feeCategory    FeeCategory  @relation(fields: [feeCategoryId], references: [id])
+  title          String
+  amount         Float
+  isOptional     Boolean      @default(false)
+}
+
+model Invoice {
+  id             String              @id @default(uuid())
+  invoiceNumber  String              @unique // e.g. INV-2025-001
+  studentId      String
+  student        Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructureId String?
+  feeStructure   FeeStructure?       @relation(fields: [feeStructureId], references: [id])
+  title          String              // e.g. Level 100 Semester 1 Tuition & Clinical Fees
+  amount         Float               // in GHS
+  discountAmount Float               @default(0)
+  amountPaid     Float               @default(0)
+  balance        Float               // in GHS
+  academicYear   String              @default("2025/2026")
+  semester       String              @default("First Semester")
+  dueDate        String
+  status         InvoiceStatus       @default(UNPAID)
+  notes          String?
+  isLocked       Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  payments       Payment[]
+  items          InvoiceItem[]
+  allocations    PaymentAllocation[]
+  discounts      FeeDiscount[]
+  paymentPlans   PaymentPlan[]
+}
+
+model InvoiceItem {
+  id            String       @id @default(uuid())
+  invoiceId     String
+  invoice       Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeCategoryId String?
+  feeCategory   FeeCategory? @relation(fields: [feeCategoryId], references: [id])
+  title         String
+  amount        Float
+
+  @@index([invoiceId])
+}
+
+model StudentFee {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  title       String
+  amount      Float
+  paidAmount  Float    @default(0)
+  balance     Float
+  dueDate     String
+  status      String   @default("UNPAID") // PAID, PARTIAL, UNPAID
+  createdAt   DateTime @default(now())
+}
+
+model Payment {
+  id               String              @id @default(uuid())
+  reference        String              @unique // Paystack Reference
+  studentId        String?
+  student          Student?            @relation(fields: [studentId], references: [id])
+  applicationId    String?
+  application      Application?        @relation(fields: [applicationId], references: [id])
+  invoiceId        String?
+  invoice          Invoice?            @relation(fields: [invoiceId], references: [id])
+  clinicInvoiceId  String?
+  clinicInvoice    ClinicInvoice?      @relation(fields: [clinicInvoiceId], references: [id])
+  patientId        String?
+  patient          Patient?            @relation(fields: [patientId], references: [id])
+  title            String
+  amount           Float               // in GHS
+  currency         String              @default("GHS")
+  method           String              @default("Mobile Money / Card") // Mobile Money (MTN, Telecel, AT), Card, Bank Transfer, Offline Cash
+  channel          String              @default("paystack") // paystack, offline
+  status           PaymentStatus       @default(SUCCESSFUL)
+  paystackStatus   String?
+  paystackRef      String?
+  receiptNumber    String              @unique
+  verifiedAt       DateTime?
+  recordedByStaff  String?             // Staff name if offline payment
+  receiptPdfUrl    String?
+  createdAt        DateTime            @default(now())
+
+  allocations      PaymentAllocation[]
+}
+
+model PaymentAllocation {
+  id        String   @id @default(uuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Float
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+model FeeDiscount {
+  id               String    @id @default(uuid())
+  studentId        String
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  invoiceId        String?
+  invoice          Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  type             String    @default("DISCOUNT") // SCHOLARSHIP, BURSARY, DISCOUNT, SPONSORSHIP
+  title            String
+  originalAmount   Float     @default(0)
+  adjustmentAmount Float
+  reason           String
+  approvalStatus   String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedBy      String?
+  approvedBy       String?
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([studentId])
+  @@index([approvalStatus])
+}
+
+model PaymentPlan {
+  id           String               @id @default(uuid())
+  studentId    String
+  student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  invoice      Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  title        String
+  totalAmount  Float
+  status       String               @default("ACTIVE") // ACTIVE, COMPLETED, DEFAULTED
+  createdBy    String?
+  createdAt    DateTime             @default(now())
+
+  installments PaymentInstallment[]
+
+  @@index([studentId])
+  @@index([invoiceId])
+}
+
+model PaymentInstallment {
+  id            String      @id @default(uuid())
+  paymentPlanId String
+  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  installmentNo Int
+  amount        Float
+  dueDate       String
+  paidAmount    Float       @default(0)
+  status        String      @default("PENDING") // PENDING, PARTIAL, PAID, OVERDUE
+}
+
+model PaystackWebhookLog {
+  id          String   @id @default(uuid())
+  event       String
+  reference   String
+  payloadJson String
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Announcement {
+  id             String   @id @default(uuid())
+  title          String
+  content        String
+  targetAudience String   @default("ALL") // ALL, STUDENTS, LECTURERS, CLINIC
+  priority       String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  courseId       String?
+  course         Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId       String?
+  semesterId     String?
+  authorId       String?
+  createdAt      DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id])
+  subject   String
+  category  String   @default("Academic") // Academic, Finance, Admission, Technical, General
+  message   String
+  status    String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  reply     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("info") // info, alert, payment, exam, result, admission, invoice
+  dedupeKey String?  @unique
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?
+  actorName   String
+  actorRole   String
+  action      String
+  entityType  String
+  entityId    String
+  detailsJson String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model LecturerProfile {
+  id               String      @id @default(uuid())
+  userId           String      @unique
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffId          String      @unique
+  departmentId     String?
+  department       Department? @relation(fields: [departmentId], references: [id])
+  qualifications   String?
+  specialization   String?
+  employmentStatus String      @default("ACTIVE")
+  dateEmployed     String?
+  bio              String?
+  officeLocation   String?
+  phone            String?
+  photoUrl         String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model CourseLecturer {
+  id             String   @id @default(uuid())
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturerId     String
+  lecturer       User     @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  semesterId     String?
+  academicYearId String?
+  cohortId       String?
+  role           String   @default("PRIMARY") // PRIMARY, CO_LECTURER, CLINICAL_INSTRUCTOR
+  isActive       Boolean  @default(true)
+  assignedAt     DateTime @default(now())
+
+  @@unique([courseId, lecturerId, semesterId])
+  @@index([lecturerId])
+}
+
+model CoursePrerequisite {
+  id                   String @id @default(uuid())
+  courseId             String
+  course               Course @relation("CoursePrerequisites", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisiteCourseId String
+  prerequisiteCourse   Course @relation("PrerequisiteFor", fields: [prerequisiteCourseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, prerequisiteCourseId])
+}
+
+model GradeScale {
+  id          String   @id @default(uuid())
+  name        String
+  minScore    Float
+  maxScore    Float
+  gradeLetter String
+  gradePoint  Float
+  remark      String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model AssessmentComponent {
+  id            String                    @id @default(uuid())
+  courseId      String
+  course        Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semesterId    String?
+  name          String
+  componentType String                    // ASSIGNMENT, QUIZ, MIDSEM, PRACTICAL, CLINICAL, FINAL_EXAM
+  weightPercent Float
+  maxMarks      Float                     @default(100)
+  orderIndex    Int                       @default(1)
+  sourceType    String?                   // ASSIGNMENT, EXAM, TOPIC_ASSESSMENT
+  sourceId      String?
+  autoSync      Boolean                   @default(true)
+  createdAt     DateTime                  @default(now())
+
+  scores        GradebookComponentScore[]
+
+  @@index([courseId])
+}
+
+model GradebookComponentScore {
+  id               String              @id @default(uuid())
+  componentId      String
+  component        AssessmentComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score            Float
+  remarks          String?
+  enteredById      String?
+  isAutoCalculated Boolean             @default(false)
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([componentId, studentId])
+  @@index([studentId])
+}
+
+
+// =========================================================================
+// COMPLETE CLINIC MANAGEMENT SYSTEM MODELS
+// =========================================================================
+
+model ClinicStaffProfile {
+  id             String            @id @default(uuid())
+  userId         String            @unique
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinicRole     String            // CLINIC_ADMIN, RECEPTIONIST, DOCTOR, NURSE, PHARMACIST, LAB_TECH, CASHIER
+  departmentId   String?
+  department     ClinicDepartment? @relation(fields: [departmentId], references: [id])
+  specialty      String?
+  licenseNumber  String?
+  scheduleDays   String?           // e.g. Mon,Tue,Wed,Thu,Fri
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  appointments   Appointment[]
+  queueEntries   ClinicQueue[]
+  consultations  Consultation[]
+  prescriptions  Prescription[]
+  labRequests    LabRequest[]
+}
+
+model Patient {
+  id                String            @id @default(uuid())
+  patientNumber     String            @unique // e.g. WMC-PT-2026-0001
+  userId            String?           @unique
+  user              User?             @relation(fields: [userId], references: [id])
+  fullName          String
+  dateOfBirth       String?
+  gender            String            @default("Female")
+  phone             String
+  email             String?
+  address           String?
+  bloodGroup        String?
+  allergies         String?
+  chronicConditions String?
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+  status            String            @default("ACTIVE") // ACTIVE, INACTIVE, DECEASED, ARCHIVED
+  registeredById    String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  appointments      Appointment[]
+  queueEntries      ClinicQueue[]
+  consultations     Consultation[]
+  diagnoses         Diagnosis[]
+  prescriptions     Prescription[]
+  labRequests       LabRequest[]
+  invoices          ClinicInvoice[]
+  payments          Payment[]
+  documents         PatientDocument[]
+
+  @@index([phone])
+  @@index([fullName])
+}
+
+model ClinicQueue {
+  id            String              @id @default(uuid())
+  queueNumber   String              // e.g. Q-001
+  queueDate     String              // YYYY-MM-DD (Africa/Accra)
+  patientId     String
+  patient       Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?             @unique
+  appointment   Appointment?        @relation(fields: [appointmentId], references: [id])
+  departmentId  String?
+  department    ClinicDepartment?   @relation(fields: [departmentId], references: [id])
+  staffId       String?
+  staff         ClinicStaffProfile? @relation(fields: [staffId], references: [id])
+  priority      String              @default("NORMAL") // NORMAL, URGENT, EMERGENCY
+  priorityNotes String?
+  status        String              @default("WAITING") // WAITING, CALLED, IN_CONSULTATION, COMPLETED, CANCELLED
+  checkedInAt   DateTime            @default(now())
+  calledAt      DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  consultation  Consultation?
+
+  @@unique([queueDate, queueNumber])
+  @@index([queueDate, status])
+  @@index([patientId])
+}
+
+model Consultation {
+  id                 String                  @id @default(uuid())
+  consultationNumber String                  @unique
+  patientId          String
+  patient            Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  queueId            String?                 @unique
+  queue              ClinicQueue?            @relation(fields: [queueId], references: [id])
+  staffId            String?
+  staff              ClinicStaffProfile?     @relation(fields: [staffId], references: [id])
+  chiefComplaint     String
+  hpi                String?                 // History of presenting illness
+  medicalHistory     String?
+  currentMedications String?
+  allergies          String?
+  clinicalNotes      String?
+  examFindings       String?
+  treatmentPlan      String?
+  followUpDate       String?
+  followUpNotes      String?
+  internalNotes      String?                 // Restricted to authorized clinicians
+  status             String                  @default("DRAFT") // DRAFT, COMPLETED
+  startedAt          DateTime                @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  vitals             VitalSign?
+  diagnoses          Diagnosis[]
+  prescriptions      Prescription[]
+  labRequests        LabRequest[]
+  amendments         ConsultationAmendment[]
+  invoices           ClinicInvoice[]
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model ConsultationAmendment {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  amendedById    String
+  amendedByName  String
+  reason         String
+  changesJson    String
+  createdAt      DateTime     @default(now())
+
+  @@index([consultationId])
+}
+
+model VitalSign {
+  id              String       @id @default(uuid())
+  consultationId  String       @unique
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  bpSystolic      Int?
+  bpDiastolic     Int?
+  temperatureC    Float?
+  pulseBpm        Int?
+  respiratoryRate Int?
+  spo2Percent     Int?
+  weightKg        Float?
+  heightCm        Float?
+  bmi             Float?
+  recordedById    String?
+  recordedAt      DateTime     @default(now())
+}
+
+model DiagnosisCatalog {
+  id          String      @id @default(uuid())
+  code        String      @unique // e.g. ICD-10 / Clinic Code
+  name        String
+  category    String?
+  description String?
+  isActive    Boolean     @default(true)
+  diagnoses   Diagnosis[]
+}
+
+model Diagnosis {
+  id             String            @id @default(uuid())
+  consultationId String
+  consultation   Consultation      @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  catalogId      String?
+  catalog        DiagnosisCatalog? @relation(fields: [catalogId], references: [id])
+  code           String?
+  title          String
+  notes          String?
+  isPrimary      Boolean           @default(false)
+  diagnosedAt    DateTime          @default(now())
+
+  @@index([patientId])
+  @@index([consultationId])
+}
+
+model Medicine {
+  id            String          @id @default(uuid())
+  name          String
+  genericName   String?
+  brandName     String?
+  category      String          @default("General")
+  description   String?
+  dosageForm    String          @default("Tablet")
+  strength      String?
+  unit          String          @default("Unit")
+  manufacturer  String?
+  supplier      String?
+  purchasePrice Float           @default(0)
+  sellingPrice  Float           @default(0)
+  reorderLevel  Int             @default(10)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  batches       MedicineBatch[]
+  movements     StockMovement[]
+  rxItems       PrescriptionItem[]
+
+  @@index([name])
+}
+
+model MedicineBatch {
+  id                String             @id @default(uuid())
+  medicineId        String
+  medicine          Medicine           @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batchNumber       String
+  quantityReceived  Int
+  quantityAvailable Int
+  expiryDate        String             // YYYY-MM-DD
+  purchaseDate      String             // YYYY-MM-DD
+  supplier          String?
+  unitCost          Float              @default(0)
+  createdAt         DateTime           @default(now())
+
+  movements         StockMovement[]
+  dispensingRecords DispensingRecord[]
+
+  @@unique([medicineId, batchNumber])
+  @@index([expiryDate])
+}
+
+model StockMovement {
+  id           String         @id @default(uuid())
+  medicineId   String
+  medicine     Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batchId      String?
+  batch        MedicineBatch? @relation(fields: [batchId], references: [id])
+  movementType String         // RECEIVE, DISPENSE, ADJUSTMENT, RETURN, EXPIRED_WRITEOFF, TRANSFER
+  quantity     Int            // positive for inflow, negative for outflow
+  reason       String?
+  staffId      String?
+  staffName    String?
+  createdAt    DateTime       @default(now())
+
+  @@index([medicineId])
+}
+
+model Prescription {
+  id                 String              @id @default(uuid())
+  prescriptionNumber String              @unique
+  consultationId     String
+  consultation       Consultation        @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patientId          String
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  staffId            String?
+  staff              ClinicStaffProfile? @relation(fields: [staffId], references: [id])
+  notes              String?
+  status             String              @default("ISSUED") // DRAFT, ISSUED, PARTIALLY_DISPENSED, DISPENSED, CANCELLED
+  issuedAt           DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  items              PrescriptionItem[]
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model PrescriptionItem {
+  id                 String             @id @default(uuid())
+  prescriptionId     String
+  prescription       Prescription       @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineId         String?
+  medicine           Medicine?          @relation(fields: [medicineId], references: [id])
+  medicineName       String
+  dosage             String
+  frequency          String
+  duration           String
+  quantityPrescribed Int
+  quantityDispensed  Int                @default(0)
+  instructions       String?
+  dispensingRecords  DispensingRecord[]
+
+  @@index([prescriptionId])
+}
+
+model DispensingRecord {
+  id                 String           @id @default(uuid())
+  prescriptionItemId String
+  prescriptionItem   PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  batchId            String
+  batch              MedicineBatch    @relation(fields: [batchId], references: [id])
+  quantityDispensed  Int
+  dispensedById      String?
+  dispensedByName    String?
+  dispensedAt        DateTime         @default(now())
+
+  @@index([prescriptionItemId])
+}
+
+model LabTestCatalog {
+  id                 String       @id @default(uuid())
+  code               String       @unique
+  name               String
+  category           String       @default("Hematology")
+  description        String?
+  priceGHS           Float        @default(50.0)
+  sampleType         String       @default("Blood")
+  preparationNotes   String?
+  turnaroundHours    Int          @default(24)
+  referenceRangeText String?
+  unit               String?
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+
+  requests           LabRequest[]
+}
+
+model LabRequest {
+  id               String              @id @default(uuid())
+  requestNumber    String              @unique
+  patientId        String
+  patient          Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consultationId   String?
+  consultation     Consultation?       @relation(fields: [consultationId], references: [id])
+  testId           String
+  test             LabTestCatalog      @relation(fields: [testId], references: [id])
+  requestedById    String?
+  requestedBy      ClinicStaffProfile? @relation(fields: [requestedById], references: [id])
+  clinicalNotes    String?
+  priority         String              @default("ROUTINE") // ROUTINE, URGENT
+  status           String              @default("REQUESTED") // REQUESTED, SAMPLE_COLLECTED, PROCESSING, COMPLETED, REVIEWED, CANCELLED
+  sampleCollectedAt DateTime?
+  completedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedByName   String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  result           LabResult?
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model LabResult {
+  id             String     @id @default(uuid())
+  labRequestId   String     @unique
+  labRequest     LabRequest @relation(fields: [labRequestId], references: [id], onDelete: Cascade)
+  resultValue    String
+  unit           String?
+  referenceRange String?
+  flag           String     @default("NORMAL") // NORMAL, ABNORMAL, CRITICAL
+  observations   String?
+  attachmentUrl  String?
+  enteredById    String?
+  enteredByName  String?
+  reviewedById   String?
+  reviewedByName String?
+  isReleased     Boolean    @default(false)
+  enteredAt      DateTime   @default(now())
+  reviewedAt     DateTime?
+}
+
+model ClinicInvoice {
+  id             String              @id @default(uuid())
+  invoiceNumber  String              @unique
+  patientId      String
+  patient        Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consultationId String?
+  consultation   Consultation?       @relation(fields: [consultationId], references: [id])
+  title          String
+  subtotal       Float               @default(0)
+  discountAmount Float               @default(0)
+  adjustmentNote String?
+  totalAmount    Float               @default(0)
+  amountPaid     Float               @default(0)
+  balance        Float               @default(0)
+  status         String              @default("UNPAID") // DRAFT, UNPAID, PARTIALLY_PAID, PAID, CANCELLED, REFUNDED
+  notes          String?
+  createdById    String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  items          ClinicInvoiceItem[]
+  payments       Payment[]
+  refunds        ClinicRefund[]
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model ClinicInvoiceItem {
+  id          String        @id @default(uuid())
+  invoiceId   String
+  invoice     ClinicInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemType    String        // CONSULTATION, LAB_TEST, MEDICINE, PROCEDURE, SERVICE
+  referenceId String?
+  description String
+  quantity    Int           @default(1)
+  unitPrice   Float
+  totalPrice  Float
+
+  @@index([invoiceId])
+}
+
+model ClinicRefund {
+  id             String        @id @default(uuid())
+  invoiceId      String
+  invoice        ClinicInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentId      String?
+  amount         Float
+  reason         String
+  approvedById   String
+  approvedByName String
+  createdAt      DateTime      @default(now())
+
+  @@index([invoiceId])
+}
+
+model PatientDocument {
+  id             String   @id @default(uuid())
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  title          String
+  category       String   @default("MEDICAL_REPORT") // REFERRAL, LAB_ATTACHMENT, MEDICAL_REPORT, CONSENT, OTHER
+  fileName       String
+  mimeType       String
+  fileSizeBytes  Int
+  storagePath    String
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([patientId])
+}

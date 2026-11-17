@@ -1,0 +1,144 @@
+================================================================================
+VERCEL DEPLOYMENT GUIDE
+Action Boat Medical Centre & Action Health College (WellLife)
+Stack: Next.js 15 (App Router) + Prisma 6 + PostgreSQL
+================================================================================
+
+1. PRE-DEPLOYMENT REQUIREMENTS & CAVEATS
+--------------------------------------------------------------------------------
+Before deploying to Vercel, review these three architecture items in the repo:
+
+A. Switch Prisma from SQLite to PostgreSQL (`prisma/schema.prisma`)
+   - Currently, `prisma/schema.prisma` (lines 1-4) uses:
+       datasource db {
+         provider = "sqlite"
+         url      = env("DATABASE_URL")
+       }
+   - SQLite (`file:./dev.db`) WILL NOT WORK on Vercel: serverless functions run
+     on an ephemeral, read-only/non-shared filesystem, so database writes are
+     lost across invocations and deployments.
+   - Update `prisma/schema.prisma` before pushing to Vercel:
+       datasource db {
+         provider  = "postgresql"
+         url       = env("DATABASE_URL")
+         directUrl = env("DIRECT_URL")
+       }
+   - Omit `directUrl` only if your PostgreSQL provider gives a single direct
+     connection URL without a separate pooler.
+
+B. Ephemeral Filesystem (`storage/` uploads)
+   - The following routes read and write files under `process.cwd()/storage/`:
+     * `app/api/school/upload-document/route.ts` (`storage/admissions`)
+     * `app/api/school/documents/[...slug]/route.ts` (`storage/admissions`)
+     * `app/api/clinic/documents/route.ts` (`storage/clinic-documents`)
+     * `app/api/clinic/documents/[id]/route.ts` (`storagePath`)
+     * `app/api/admin/learning-materials/route.ts` (`storage/pdfs`)
+     * `app/api/admin/learning-materials/[id]/route.ts` (`storage/pdfs`)
+     * `app/api/admin/learning-materials/[id]/pdf/route.ts` (`storage/pdfs`)
+   - On Vercel, writes to `storage/` are ephemeral (lost on cold starts and
+     redeploys) and may fail on read-only paths.
+   - For production file persistence, migrate these handlers to external object
+     storage (e.g., Vercel Blob, AWS S3, or Cloudflare R2) and store the
+     resulting object URL/key in the database.
+
+C. Demo Login & Seeded Passwords
+   - `prisma/seed.js` creates accounts with default passwords (`password123`,
+     `admin123`). Rotate all seeded passwords immediately after initial setup.
+   - `app/api/auth/demo-login/route.ts` returns `403` in `NODE_ENV=production`
+     unless `ALLOW_DEMO_LOGIN="true"` is explicitly set.
+   - `app/auth/login/page.tsx`, `components/DemoRoleSwitcher.tsx`, and
+     `app/school/track/page.tsx` hide demo login buttons, the role switcher,
+     and sample application refs in production unless
+     `NEXT_PUBLIC_ALLOW_DEMO_LOGIN="true"` is set. Keep both
+     `ALLOW_DEMO_LOGIN` and `NEXT_PUBLIC_ALLOW_DEMO_LOGIN` unset (or `"false"`)
+     in production.
+   - `lib/auth.ts` and `lib/ai-provider.ts` throw in `NODE_ENV=production` if
+     `JWT_SECRET` is not set.
+
+
+2. PROVISION POSTGRESQL DATABASE
+--------------------------------------------------------------------------------
+1. Create a managed PostgreSQL database (e.g., Neon, Supabase, or Vercel
+   Marketplace Postgres / Prisma Postgres).
+2. Copy both connection strings:
+   - `DATABASE_URL`: Pooled connection string (used at runtime by Prisma Client).
+   - `DIRECT_URL`: Direct/unpooled connection string (used by Prisma CLI for
+     `prisma db push` and migrations).
+
+
+3. CONFIGURE VERCEL ENVIRONMENT VARIABLES
+--------------------------------------------------------------------------------
+In Vercel Dashboard -> Your Project -> Settings -> Environment Variables, add
+the following for Production (and Preview if desired):
+
+Required:
+  DATABASE_URL              = postgresql://USER:PASSWORD@POOL_HOST:5432/DB?sslmode=require
+  DIRECT_URL                = postgresql://USER:PASSWORD@DIRECT_HOST:5432/DB?sslmode=require
+  JWT_SECRET                = <strong random 64-char secret, e.g. `openssl rand -base64 48`>
+  NEXT_PUBLIC_APP_URL       = https://<your-domain>.vercel.app
+
+Paystack (Required for live/test GHS payments):
+  PAYSTACK_SECRET_KEY       = sk_live_... (or sk_test_... for staging)
+  PAYSTACK_PUBLIC_KEY       = pk_live_... (or pk_test_... for staging)
+  PAYSTACK_CALLBACK_URL     = https://<your-domain>.vercel.app/portal/student/payments/callback
+  PAYSTACK_WEBHOOK_SECRET   = <same as PAYSTACK_SECRET_KEY unless using a separate secret>
+
+Optional (Branding & AI PDF Processing Fallback):
+  NEXT_PUBLIC_APP_NAME      = Action Boat Medical Centre & Action Health College
+  NEXT_PUBLIC_CLINIC_DOMAIN = clinic.welllife.org
+  NEXT_PUBLIC_SCHOOL_DOMAIN = school.welllife.org
+  OPENAI_API_KEY            = sk-...
+  OPENAI_BASE_URL           = https://api.openai.com
+  OPENAI_ENDPOINT           = /v1/chat/completions
+  OPENAI_MODEL              = gpt-4o-mini
+
+
+4. VERCEL BUILD & PRISMA SETUP
+--------------------------------------------------------------------------------
+1. Framework Preset: Next.js
+2. Build Command:
+     npm run build
+   (`package.json` includes `"postinstall": "prisma generate"`, so Prisma Client
+   is generated automatically during `npm install` on Vercel. You can also set
+   `npx prisma generate && npm run build` explicitly if desired.)
+3. Push the Prisma schema to your production PostgreSQL database (run once from
+   your local machine or CI with `DATABASE_URL` and `DIRECT_URL` set):
+     npx prisma db push
+4. Initial Seed (FRESH DATABASE ONLY):
+     npm run db:seed
+   WARNING: `prisma/seed.js` executes `deleteMany()` across all tables before
+   inserting seed data (and automatically calls `seed-modules-and-quizzes.js`).
+   NEVER run `npm run db:seed` against a database containing real user data.
+
+
+5. PAYSTACK WEBHOOK CONFIGURATION
+--------------------------------------------------------------------------------
+1. Log in to the Paystack Dashboard -> Settings -> API Keys & Webhooks.
+2. Set the Webhook URL to:
+     https://<your-domain>.vercel.app/api/payments/paystack/webhook
+3. Set the Callback URL (and `PAYSTACK_CALLBACK_URL` env var) to:
+     https://<your-domain>.vercel.app/portal/student/payments/callback
+   (If `PAYSTACK_CALLBACK_URL` is omitted, `lib/paystack.ts` falls back to
+   `NEXT_PUBLIC_APP_URL` or Vercel's automatic `VERCEL_URL`.)
+4. `app/api/payments/paystack/webhook/route.ts` enforces `x-paystack-signature`
+   HMAC-SHA512 verification in `NODE_ENV === "production"` (unsigned requests
+   are only bypassed in non-production environments). Ensure `PAYSTACK_SECRET_KEY`
+   (and `PAYSTACK_WEBHOOK_SECRET` if set) matches your Paystack dashboard key.
+
+
+6. POST-DEPLOY VERIFICATION
+--------------------------------------------------------------------------------
+After the Vercel deployment succeeds, verify the following:
+1. Public pages load without 500 errors: `/`, `/clinic/about`, `/school`, `/auth/login`.
+2. Database connectivity & auth: sign in with a seeded/created account and
+   confirm `Set-Cookie` works over HTTPS (`secure: true` in production) and
+   dashboard data loads from PostgreSQL.
+3. Paystack flow (if enabled): initiate a test student fee payment, verify
+   redirect to `PAYSTACK_CALLBACK_URL`, and confirm webhook delivery (`200 OK`
+   and `PaystackWebhookLog` record created).
+4. AI PDF / Auto-Grading (if enabled): verify either an Admin-configured
+   provider in Admin Panel -> Learning Materials -> AI Providers & Usage, or
+   `OPENAI_API_KEY` env fallback.
+5. Check Vercel Runtime Logs for any `prisma` connection or `ENOENT` storage
+   errors.
+================================================================================

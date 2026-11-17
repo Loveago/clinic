@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-dark: #073832;
+    --brand-accent: #10b981;
+    --brand-mint: #34d399;
+    --brand-cream: #f4f8f6;
+  }
+
+  body {
+    @apply bg-[#f8faf9] text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom hero wave & aesthetic styles matching mockup */
+.bg-emerald-gradient {
+  background: radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 60%),
+              linear-gradient(135deg, #073832 0%, #052924 100%);
+}
+
+.bg-emerald-card-gradient {
+  background: linear-gradient(180deg, #073832 0%, #062e29 100%);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
