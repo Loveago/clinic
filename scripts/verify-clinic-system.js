@@ -82,20 +82,31 @@ async function main() {
   try {
     console.log('\n=== Phase 23: Complete Clinic Management System Verification ===\n');
 
-    // 1. Auth setup
-    const adminCookie = await loginWithDemo('SUPER_ADMIN');
+    // 1. Auth setup & School/Clinic Separation
+    const adminCookie = await loginWithDemo('CLINIC_SUPER_ADMIN');
+    const schoolAdminCookie = await loginWithDemo('SUPER_ADMIN');
     const studentCookie = await loginWithDemo('STUDENT');
-    assert(Boolean(adminCookie && studentCookie), 'Demo logins succeed for SUPER_ADMIN and STUDENT');
+    assert(Boolean(adminCookie && schoolAdminCookie && studentCookie), 'Demo logins succeed for CLINIC_SUPER_ADMIN, SUPER_ADMIN, and STUDENT');
 
-    // Check portal pages return HTTP 200
+    // Check portal pages
     const clinicPage = await fetch(`${BASE}/portal/clinic`);
+    const clinicAdminPage = await fetch(`${BASE}/portal/clinic/admin`);
     const patientPage = await fetch(`${BASE}/portal/patient`);
+    const patientPortalApi = await api('/api/clinic/patient-portal', { cookie: studentCookie });
     assert(clinicPage.status === 200, '/portal/clinic returns HTTP 200');
-    assert(patientPage.status === 200, '/portal/patient returns HTTP 200');
+    assert(clinicAdminPage.status === 200, '/portal/clinic/admin returns HTTP 200');
+    assert(patientPage.status === 404, 'Removed /portal/patient returns HTTP 404');
+    assert(patientPortalApi.status === 404, 'Removed /api/clinic/patient-portal returns HTTP 404');
 
-    // Unauthorized access check: STUDENT cannot access clinic staff endpoints
+    // Strict separation checks
     const unauthPatients = await api('/api/clinic/patients', { cookie: studentCookie });
     assert(unauthPatients.status === 403, 'Unauthorized role (STUDENT) blocked from /api/clinic/patients (403)');
+
+    const schoolIntoClinic = await api('/api/clinic/patients', { cookie: schoolAdminCookie });
+    assert(schoolIntoClinic.status === 403, 'School Admin (SUPER_ADMIN without clinic profile) blocked from /api/clinic/patients (403)');
+
+    const clinicIntoSchool = await api('/api/admin/school-settings', { cookie: adminCookie });
+    assert(clinicIntoSchool.status === 403, 'Clinic Super Admin blocked from /api/admin/school-settings (403)');
 
     // 2. Create temporary clinic staff (DOCTOR and LAB_TECH)
     const docEmail = `verify.doc.${ts}@clinic.local`;
@@ -680,6 +691,40 @@ async function main() {
       'Paystack initialization for non-existent clinic invoice rejected (4xx)',
       `${invalidInit.status} ${JSON.stringify(invalidInit.data)}`
     );
+
+    // EMR, Triage, Config, and Referral checks
+    const cfgRes = await api('/api/clinic/config', { cookie: adminCookie });
+    assert(cfgRes.ok && Boolean(cfgRes.data.config?.clinicName), 'ClinicConfiguration GET returns clinic settings');
+
+    const allergyRes = await api('/api/clinic/emr', {
+      method: 'POST',
+      cookie: doctorCookie,
+      body: { action: 'add_allergy', patientId, substance: 'Penicillin', category: 'MEDICATION', reaction: 'Rash', severity: 'SEVERE' },
+    });
+    assert(allergyRes.ok, 'EMR: Record structured patient allergy');
+
+    const triageRes = await api('/api/clinic/triage', {
+      method: 'POST',
+      cookie: adminCookie,
+      body: { action: 'record_triage', patientId, triageCategory: 'URGENT', chiefComplaint: 'High fever', bpSystolic: 120, bpDiastolic: 80, temperatureC: 38.6, weightKg: 70, heightCm: 175 },
+    });
+    assert(triageRes.ok && triageRes.data.triage?.bmi === 22.9, 'Triage: Record triage assessment with BMI calculation');
+
+    const emrFull = await api(`/api/clinic/emr?patientId=${patientId}`, { cookie: doctorCookie });
+    assert(
+      emrFull.ok &&
+        emrFull.data.patient?.allergyRecords?.length >= 1 &&
+        emrFull.data.patient?.triageRecords?.length >= 1 &&
+        emrFull.data.timeline?.length >= 3,
+      'EMR: Longitudinal workspace returns allergies, triage, and chronological timeline'
+    );
+
+    const refRes = await api('/api/clinic/referrals', {
+      method: 'POST',
+      cookie: doctorCookie,
+      body: { patientId, direction: 'INTERNAL', receivingDepartment: 'Laboratory', reason: 'Follow-up review' },
+    });
+    assert(refRes.ok && Boolean(refRes.data.referral?.referralNumber), 'Referral: Create internal referral');
 
     // Webhook idempotency test (when PAYSTACK_SECRET_KEY is configured)
     const secret = process.env.PAYSTACK_SECRET_KEY;

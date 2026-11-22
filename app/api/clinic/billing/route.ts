@@ -216,7 +216,7 @@ export async function PATCH(req: NextRequest) {
           title: 'Clinic Payment Confirmed',
           message: `Payment of GH₵${amount.toFixed(2)} for ${existing.invoiceNumber} confirmed (Receipt: ${receiptNumber}).`,
           type: 'PAYMENT',
-          link: '/portal/patient',
+          link: '/portal/clinic',
         });
       }
 

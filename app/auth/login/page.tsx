@@ -30,15 +30,18 @@ export default function LoginPage() {
   const getPortalRouteForRole = (role: string) => {
     if (role === 'STUDENT') return '/portal/student/dashboard';
     if (role === 'LECTURER' || role === 'EXAM_OFFICER') return '/portal/lecturer';
-    if (role === 'PATIENT') return '/portal/patient';
+    if (role === 'CLINIC_SUPER_ADMIN') return '/portal/clinic/admin';
     if (
       [
         'DOCTOR',
         'NURSE',
+        'MIDWIFE',
         'PHARMACIST',
         'LAB_TECH',
+        'RADIOLOGY_STAFF',
         'RECEPTIONIST',
         'CASHIER',
+        'RECORDS_OFFICER',
         'CLINIC_ADMIN',
       ].includes(role)
     ) {
@@ -47,6 +50,7 @@ export default function LoginPage() {
     if (
       [
         'SUPER_ADMIN',
+        'SCHOOL_SUPER_ADMIN',
         'SCHOOL_ADMIN',
         'ADMISSIONS_OFFICER',
         'REGISTRAR',
@@ -55,7 +59,7 @@ export default function LoginPage() {
     ) {
       return '/portal/admin';
     }
-    return '/portal/admin';
+    return '/';
   };
 
   const handleLogin = async (e: React.FormEvent) => {

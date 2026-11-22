@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || 25)));
 
     const where = {
-      ...(status ? { status } : { status: { not: 'ARCHIVED' } }),
+      ...(status ? { status } : { status: { notIn: ['ARCHIVED', 'MERGED'] } }),
       ...(search
         ? {
             OR: [
@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
               { patientNumber: { contains: search } },
               { phone: { contains: search } },
               { email: { contains: search } },
+              { ghanaCardNumber: { contains: search } },
             ],
           }
         : {}),
@@ -114,17 +115,36 @@ export async function POST(req: NextRequest) {
       data: {
         patientNumber,
         fullName,
+        firstName: body.firstName ? String(body.firstName).trim() : null,
+        middleName: body.middleName ? String(body.middleName).trim() : null,
+        lastName: body.lastName ? String(body.lastName).trim() : null,
+        otherNames: body.otherNames ? String(body.otherNames).trim() : null,
         dateOfBirth,
         gender: String(body.gender || 'Female'),
+        maritalStatus: body.maritalStatus ? String(body.maritalStatus).trim() : null,
+        nationality: body.nationality ? String(body.nationality).trim() : 'Ghanaian',
+        preferredLanguage: body.preferredLanguage ? String(body.preferredLanguage).trim() : 'English',
+        ghanaCardNumber: body.ghanaCardNumber ? String(body.ghanaCardNumber).trim() : null,
         phone,
+        altPhone: body.altPhone ? normalizeGhanaPhone(String(body.altPhone)) : null,
         email: body.email ? String(body.email).trim().toLowerCase() : null,
         address: body.address ? String(body.address).trim() : null,
+        townCity: body.townCity ? String(body.townCity).trim() : null,
+        region: body.region ? String(body.region).trim() : null,
+        ghanaPostGps: body.ghanaPostGps ? String(body.ghanaPostGps).trim() : null,
+        occupation: body.occupation ? String(body.occupation).trim() : null,
+        employer: body.employer ? String(body.employer).trim() : null,
         bloodGroup: body.bloodGroup ? String(body.bloodGroup).trim() : null,
         allergies: body.allergies ? String(body.allergies).trim() : null,
         chronicConditions: body.chronicConditions ? String(body.chronicConditions).trim() : null,
         emergencyName: body.emergencyName ? String(body.emergencyName).trim() : null,
         emergencyPhone: body.emergencyPhone ? normalizeGhanaPhone(String(body.emergencyPhone)) : null,
         emergencyRelation: body.emergencyRelation ? String(body.emergencyRelation).trim() : null,
+        nextOfKinName: body.nextOfKinName ? String(body.nextOfKinName).trim() : null,
+        nextOfKinPhone: body.nextOfKinPhone ? normalizeGhanaPhone(String(body.nextOfKinPhone)) : null,
+        nextOfKinRelation: body.nextOfKinRelation ? String(body.nextOfKinRelation).trim() : null,
+        preferredContactMethod: body.preferredContactMethod || 'Phone',
+        referralSource: body.referralSource ? String(body.referralSource).trim() : null,
         status: 'ACTIVE',
         registeredById: auth.userId || null,
       },

@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
           staff: { include: { user: { select: { name: true, title: true } } } },
         },
       });
-    });
+    }, { timeout: 20000 });
 
     await logClinicAudit({
       actorId: auth.userId,
@@ -325,7 +325,7 @@ export async function PATCH(req: NextRequest) {
           labRequests: { include: { test: true, result: true } },
         },
       });
-    });
+    }, { timeout: 20000 });
 
     await logClinicAudit({
       actorId: auth.userId,

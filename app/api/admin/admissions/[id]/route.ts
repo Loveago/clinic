@@ -397,7 +397,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         });
 
         return { updatedApp, student, userId: userId! };
-      });
+      }, { timeout: 20000 });
 
       await sendNotificationOnce({
         userId: result.userId,

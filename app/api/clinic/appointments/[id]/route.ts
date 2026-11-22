@@ -100,7 +100,7 @@ export async function PATCH(
         title: `Appointment ${nextStatus.replace(/_/g, ' ')}`,
         message: `Your appointment on ${updated.preferredDate} at ${updated.preferredTime} is now ${nextStatus.replace(/_/g, ' ')}.`,
         type: 'APPOINTMENT',
-        link: '/portal/patient',
+        link: '/portal/clinic',
       });
     }
 

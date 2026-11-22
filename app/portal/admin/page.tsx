@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Users,
   Calendar,
@@ -43,13 +43,14 @@ import {
 import DemoRoleSwitcher from '@/components/DemoRoleSwitcher';
 import { formatGHS, formatGHSCompact } from '@/lib/currency';
 
-export default function AdminDashboardPage() {
+function AdminDashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authChecked, setAuthChecked] = useState(false);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'students' | 'admissions' | 'lecturers' | 'academics' | 'exams' | 'finance' | 'clinic' | 'announcements' | 'reports'
+    'overview' | 'students' | 'admissions' | 'lecturers' | 'academics' | 'exams' | 'finance' | 'announcements' | 'reports'
   >('overview');
 
   // Sub-data states
@@ -119,7 +120,7 @@ export default function AdminDashboardPage() {
       const meData = await meRes.json();
       const allowedRoles = [
         'SUPER_ADMIN',
-        'CLINIC_ADMIN',
+        'SCHOOL_SUPER_ADMIN',
         'SCHOOL_ADMIN',
         'ADMISSIONS_OFFICER',
         'REGISTRAR',
@@ -176,6 +177,16 @@ export default function AdminDashboardPage() {
       console.error(e);
     }
   };
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    const valid = ['overview', 'students', 'admissions', 'lecturers', 'academics', 'exams', 'finance', 'announcements', 'reports'];
+    if (t && valid.includes(t)) {
+      setActiveTab(t as any);
+    } else if (!t) {
+      setActiveTab('overview');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchOverview();
@@ -412,59 +423,58 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <DemoRoleSwitcher />
 
-      {/* Top Banner / Ghana Identity */}
-      <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md">
+      {/* Compact School Workspace Sub-header */}
+      <header className="bg-white border-b border-slate-200 text-slate-900 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/20">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-black tracking-tight text-white">Action Health Admin Workspace</h1>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    Ghana (en-GH)
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">Institutional Governance & Hospital-Nursing Portal</p>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+            <div>
+              <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
+                School Administration &amp; Academic Governance
+              </h1>
+              <p className="text-xs text-slate-500">
+                Admissions, Student Records, Programmes, Lecturers, Examinations &amp; GH₵ Tuition Finance
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => {
                   fetchOverview();
                   if (activeTab !== 'overview') loadTabData(activeTab);
                 }}
-                className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition"
+                className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition font-semibold"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
               </button>
-              <Link
-                href="/"
-                className="text-xs text-emerald-400 hover:text-emerald-300 font-medium px-3 py-1.5 rounded-lg border border-emerald-500/30 transition"
+              <button
+                onClick={() => setShowAddStudentModal(true)}
+                className="flex items-center gap-1.5 text-xs text-white bg-[#073832] hover:bg-emerald-900 px-3 py-1.5 rounded-lg font-bold transition shadow-xs"
               >
-                Clinic Site &rarr;
-              </Link>
+                <UserPlus className="w-3.5 h-3.5" /> Enroll Student
+              </button>
+              <button
+                onClick={() => setShowNewAnnouncementModal(true)}
+                className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 font-bold transition"
+              >
+                <Bell className="w-3.5 h-3.5" /> Broadcast Notice
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Workspace Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/80">
+        {/* Quick Section Tabs (School-only) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100">
           <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2 scrollbar-none text-xs font-semibold">
             {[
-              { id: 'overview', label: 'Dashboard Overview', icon: BarChart3 },
+              { id: 'overview', label: 'Overview', icon: BarChart3 },
               { id: 'students', label: 'Students', icon: Users, badge: stats.totalStudents },
-              { id: 'admissions', label: 'Admissions Pipeline', icon: GraduationCap, badge: stats.pendingApplications },
+              { id: 'admissions', label: 'Admissions', icon: GraduationCap, badge: stats.pendingApplications },
               { id: 'lecturers', label: 'Lecturers', icon: UserCheck, badge: stats.totalLecturers },
-              { id: 'academics', label: 'Academics & Timetable', icon: BookOpen },
+              { id: 'academics', label: 'Academics', icon: BookOpen },
               { id: 'exams', label: 'Exams & Results', icon: Award },
-              { id: 'finance', label: 'Finance & GH₵ Fees', icon: DollarSign },
-              { id: 'clinic', label: 'Clinic Appointments', icon: Stethoscope },
+              { id: 'finance', label: 'Finance (GH₵)', icon: DollarSign },
               { id: 'announcements', label: 'Announcements', icon: Bell },
-              { id: 'reports', label: 'Reports & Exports', icon: FileSpreadsheet },
+              { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -472,10 +482,10 @@ export default function AdminDashboardPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
                     isActive
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      ? 'bg-[#073832] text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -483,7 +493,7 @@ export default function AdminDashboardPage() {
                   {tab.badge !== undefined && tab.badge > 0 && (
                     <span
                       className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                        isActive ? 'bg-emerald-800 text-white' : 'bg-slate-700 text-slate-300'
+                        isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
                       {tab.badge}
@@ -492,55 +502,6 @@ export default function AdminDashboardPage() {
                 </button>
               );
             })}
-            <Link
-              href="/portal/admin/admissions"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25"
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Admissions Workspace</span>
-            </Link>
-            <Link
-              href="/portal/admin/students"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500/25"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Student Records</span>
-            </Link>
-            <Link
-              href="/portal/admin/finance"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"
-            >
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>Fees &amp; Finance</span>
-            </Link>
-            <Link
-              href="/portal/admin/learning"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>PDF Learning &amp; Topic Assessments</span>
-            </Link>
-            <Link
-              href="/portal/admin/academics"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Academics &amp; Lecturers</span>
-            </Link>
-            <Link
-              href="/portal/admin/examinations"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25"
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span>Examinations Console</span>
-            </Link>
-            <Link
-              href="/portal/clinic"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25"
-            >
-              <Stethoscope className="w-3.5 h-3.5" />
-              <span>Clinic Console</span>
-            </Link>
           </nav>
         </div>
       </header>
@@ -1301,57 +1262,6 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 8: CLINIC APPOINTMENTS */}
-        {activeTab === 'clinic' && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <h2 className="font-black text-slate-900 text-base">Hospital Outpatient Clinic Appointments</h2>
-                <p className="text-xs text-slate-500">
-                  Accra Outpatient Department (OPD), specialist consultation bookings, and clinical triage.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4">Patient Name</th>
-                      <th className="py-3 px-4">Contact</th>
-                      <th className="py-3 px-4">Clinic Service</th>
-                      <th className="py-3 px-4">Date & Time</th>
-                      <th className="py-3 px-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data?.recentAppointments?.map((apt: any) => (
-                      <tr key={apt.id}>
-                        <td className="py-3 px-4 font-bold text-slate-900">{apt.patientName}</td>
-                        <td className="py-3 px-4 text-slate-500">{apt.patientPhone}</td>
-                        <td className="py-3 px-4 font-medium text-emerald-800">{apt.service?.title || 'General Consultation'}</td>
-                        <td className="py-3 px-4">{apt.preferredDate} at {apt.preferredTime}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              apt.status === 'CONFIRMED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {apt.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* TAB 9: ANNOUNCEMENTS */}
         {activeTab === 'announcements' && (
           <div className="space-y-4">
@@ -1957,5 +1867,13 @@ export default function AdminDashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <AdminDashboardContent />
+    </Suspense>
   );
 }

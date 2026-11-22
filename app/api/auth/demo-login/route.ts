@@ -11,9 +11,14 @@ export async function POST(req: NextRequest) {
     const { role } = await req.json();
 
     let user = null;
-    if (role === 'admin' || role === 'SUPER_ADMIN') {
+    if (role === 'admin' || role === 'SUPER_ADMIN' || role === 'SCHOOL_SUPER_ADMIN') {
       user = await prisma.user.findFirst({
         where: { role: 'SUPER_ADMIN' },
+        include: { studentProfile: { include: { programme: true } } },
+      });
+    } else if (role === 'clinic_admin' || role === 'CLINIC_SUPER_ADMIN') {
+      user = await prisma.user.findFirst({
+        where: { role: { in: ['CLINIC_SUPER_ADMIN', 'CLINIC_ADMIN'] } },
         include: { studentProfile: { include: { programme: true } } },
       });
     } else if (role === 'lecturer' || role === 'LECTURER') {

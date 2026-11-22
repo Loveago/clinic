@@ -28,14 +28,23 @@ import {
   Clock,
   Printer,
   ShieldAlert,
+  LogOut,
+  ExternalLink,
+  Shield,
+  HeartPulse,
+  Scan,
 } from 'lucide-react';
+import PatientEmrWorkspace from '@/components/PatientEmrWorkspace';
+import ClinicTriageAndDiagnostics from '@/components/ClinicTriageAndDiagnostics';
 
 type ClinicTab =
   | 'dashboard'
   | 'queue'
   | 'patients'
+  | 'triage'
   | 'appointments'
   | 'consultations'
+  | 'diagnostics'
   | 'pharmacy'
   | 'lab'
   | 'billing'
@@ -45,6 +54,7 @@ type ClinicTab =
 export default function ClinicManagementConsole() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [tab, setTab] = useState<ClinicTab>('dashboard');
   const [mobileNav, setMobileNav] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -60,6 +70,7 @@ export default function ClinicManagementConsole() {
   const [patients, setPatients] = useState<any[]>([]);
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [emrPatientId, setEmrPatientId] = useState<string | null>(null);
   const [queue, setQueue] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [consultations, setConsultations] = useState<any[]>([]);
@@ -214,20 +225,24 @@ export default function ClinicManagementConsole() {
       }
       const meData = await meRes.json();
       const allowedRoles = [
-        'SUPER_ADMIN',
+        'CLINIC_SUPER_ADMIN',
         'CLINIC_ADMIN',
         'RECEPTIONIST',
         'DOCTOR',
         'NURSE',
+        'MIDWIFE',
         'PHARMACIST',
         'LAB_TECH',
+        'RADIOLOGY_STAFF',
         'CASHIER',
-        'FINANCE_OFFICER',
+        'RECORDS_OFFICER',
       ];
-      if (!meData?.user || !allowedRoles.includes(meData.user.role)) {
+      const hasClinicProfile = Boolean(meData?.user?.clinicStaffProfile?.isActive);
+      if (!meData?.user || (!allowedRoles.includes(meData.user.role) && !hasClinicProfile)) {
         router.replace('/auth/login');
         return;
       }
+      setCurrentUser(meData.user);
 
       const [dashR, patR, qR, apptR, consR, pharmR, labR, invR, catR, repR] = await Promise.all([
         fetch(`/api/clinic/dashboard?date=${selectedDate}`),
@@ -572,18 +587,30 @@ export default function ClinicManagementConsole() {
     }
   };
 
-  const navItems: Array<{ id: ClinicTab; label: string; icon: any }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: Activity },
-    { id: 'queue', label: 'Reception & Queue', icon: ListOrdered },
-    { id: 'patients', label: 'Patients', icon: Users },
+  const waitingQueueCount = queue.filter((q) => q.status === 'WAITING' || q.status === 'CALLED').length;
+  const pendingLabCount = (lab?.requests || []).filter((r: any) => r.status !== 'REVIEWED' && r.status !== 'CANCELLED').length;
+  const pharmacyAlertCount = (pharmacy?.alerts?.lowStockCount || 0) + (pharmacy?.alerts?.expiringSoonCount || 0);
+  const unpaidInvoiceCount = invoices.filter((i) => i.status !== 'PAID' && i.status !== 'CANCELLED' && i.status !== 'REFUNDED').length;
+
+  const navItems: Array<{ id: ClinicTab; label: string; icon: any; badge?: number }> = [
+    { id: 'dashboard', label: 'Command Centre', icon: Activity },
+    { id: 'queue', label: 'Reception & Queue', icon: ListOrdered, badge: waitingQueueCount },
+    { id: 'patients', label: 'Patients & EMR', icon: Users },
+    { id: 'triage', label: 'Triage & Nursing', icon: HeartPulse },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'consultations', label: 'Consultations', icon: Stethoscope },
-    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill },
-    { id: 'lab', label: 'Laboratory', icon: FlaskConical },
-    { id: 'billing', label: 'Billing & Payments', icon: CreditCard },
+    { id: 'pharmacy', label: 'Pharmacy & Stock', icon: Pill, badge: pharmacyAlertCount },
+    { id: 'lab', label: 'Laboratory', icon: FlaskConical, badge: pendingLabCount },
+    { id: 'diagnostics', label: 'Imaging, Proc & Ref', icon: Scan },
+    { id: 'billing', label: 'Billing & Payments', icon: CreditCard, badge: unpaidInvoiceCount },
     { id: 'catalog', label: 'Services & Staff', icon: Building2 },
     { id: 'reports', label: 'Reports & Audit', icon: BarChart3 },
   ];
+
+  const handleClinicLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    router.push('/auth/login');
+  };
 
   const calcLiveBmi = () => {
     const w = Number(consultForm.weightKg);
@@ -632,12 +659,23 @@ export default function ClinicManagementConsole() {
                   setTab(item.id);
                   setMobileNav(false);
                 }}
-                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition ${
+                className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl transition ${
                   active ? 'bg-white text-[#073832] shadow-sm font-bold' : 'text-emerald-100/85 hover:bg-white/10'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex items-center gap-2.5">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{item.label}</span>
+                </span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      active ? 'bg-emerald-100 text-[#073832]' : 'bg-white/15 text-emerald-200'
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -645,25 +683,35 @@ export default function ClinicManagementConsole() {
 
         <div className="p-4 border-t border-emerald-900/70 space-y-2 text-xs">
           <Link
-            href="/portal/patient"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-100 font-semibold"
+            href="/"
+            className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-100 font-semibold"
           >
-            <Users className="w-3.5 h-3.5" />
-            <span>Patient Self-Portal</span>
+            <span>Public Clinic Site</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </Link>
-          <Link
-            href="/portal/admin"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-emerald-200"
+          {['CLINIC_SUPER_ADMIN', 'CLINIC_ADMIN'].includes(currentUser?.clinicStaffProfile?.clinicRole || currentUser?.role) && (
+            <Link
+              href="/portal/clinic/admin"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-400/15 hover:bg-teal-400/25 text-teal-200 border border-teal-400/25 font-semibold"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Clinic Administration</span>
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={handleClinicLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-semibold transition"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Main Admin Portal</span>
-          </Link>
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between sticky top-0 z-30">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileNav(true)}
@@ -672,16 +720,41 @@ export default function ClinicManagementConsole() {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-base sm:text-lg font-extrabold text-[#073832]">
-                {navItems.find((n) => n.id === tab)?.label}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-extrabold text-[#073832]">
+                  {navItems.find((n) => n.id === tab)?.label}
+                </h1>
+                <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">
+                  Clinic System
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500">
                 Clinical Operations · Africa/Accra · Currency: GH₵
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setTab('patients');
+                setShowPatientModal(true);
+              }}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#073832] hover:bg-emerald-900 text-white text-xs font-bold transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Register Patient</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              title="Print current view"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print</span>
+            </button>
             <input
               type="date"
               value={selectedDate}
@@ -694,8 +767,16 @@ export default function ClinicManagementConsole() {
               className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700"
               title="Refresh"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${busy || loading ? 'animate-spin' : ''}`} />
             </button>
+            {currentUser && (
+              <div className="hidden xl:flex items-center gap-2 pl-2 border-l border-slate-200 text-xs">
+                <div className="text-right">
+                  <div className="font-bold text-slate-900 leading-tight">{currentUser.name}</div>
+                  <div className="text-[10px] font-semibold uppercase text-teal-700">{currentUser.role}</div>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -906,8 +987,29 @@ export default function ClinicManagementConsole() {
             </div>
           )}
 
-          {/* TAB 3: PATIENTS */}
-          {tab === 'patients' && (
+          {/* TAB 3: PATIENTS & EMR */}
+          {tab === 'patients' && emrPatientId && (
+            <PatientEmrWorkspace
+              patientId={emrPatientId}
+              onClose={() => setEmrPatientId(null)}
+              onQuickAction={(act, pat) => {
+                if (act === 'queue') {
+                  handleCheckIn(pat.id);
+                } else if (act === 'triage') {
+                  setEmrPatientId(null);
+                  setTab('triage');
+                } else if (act === 'consult') {
+                  setEmrPatientId(null);
+                  setTab('consultations');
+                } else if (act === 'invoice') {
+                  setEmrPatientId(null);
+                  setTab('billing');
+                }
+              }}
+            />
+          )}
+
+          {tab === 'patients' && !emrPatientId && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row gap-3 justify-between">
                 <div className="relative flex-1 max-w-md">
@@ -950,10 +1052,16 @@ export default function ClinicManagementConsole() {
                           <td className="p-3.5 text-slate-600">{p._count?.consultations || 0} consults</td>
                           <td className="p-3.5 text-right space-x-1.5">
                             <button
+                              onClick={() => setEmrPatientId(p.id)}
+                              className="px-2.5 py-1 rounded-lg bg-teal-600 text-white font-bold"
+                            >
+                              Full EMR
+                            </button>
+                            <button
                               onClick={() => loadPatientDetail(p.id)}
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold"
                             >
-                              Profile
+                              Summary
                             </button>
                             <button
                               onClick={() => handleCheckIn(p.id)}
@@ -1056,6 +1164,14 @@ export default function ClinicManagementConsole() {
                 </div>
               </div>
             </div>
+          )}
+
+          {tab === 'triage' && (
+            <ClinicTriageAndDiagnostics mode="triage" patients={patients} />
+          )}
+
+          {tab === 'diagnostics' && (
+            <ClinicTriageAndDiagnostics mode="diagnostics" patients={patients} />
           )}
 
           {/* TAB 4: APPOINTMENTS */}

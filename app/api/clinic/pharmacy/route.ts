@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
             data: { status: nextStatus },
             include: { items: { include: { dispensingRecords: true } } },
           });
-        });
+        }, { timeout: 20000 });
 
         await logClinicAudit({
           actorId: auth.userId,

@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         title: 'Clinic Appointment Scheduled',
         message: `Your appointment is scheduled for ${preferredDate} at ${preferredTime}.`,
         type: 'APPOINTMENT',
-        link: '/portal/patient',
+        link: '/portal/clinic',
       });
     }
 

@@ -151,11 +151,76 @@ async function main() {
     },
   });
 
+  const clinicAdminEmail = (process.env.SEED_CLINIC_ADMIN_EMAIL || 'clinic.admin@actionhealth.edu.gh').trim().toLowerCase();
+  const clinicAdminPassword = process.env.SEED_CLINIC_ADMIN_PASSWORD || 'ClinicAdmin@2026!';
+  const clinicAdminHash = await bcrypt.hash(clinicAdminPassword, 10);
+
+  const clinicAdminUser = await prisma.user.upsert({
+    where: { email: clinicAdminEmail },
+    update: {
+      passwordHash: clinicAdminHash,
+      role: 'CLINIC_SUPER_ADMIN',
+    },
+    create: {
+      email: clinicAdminEmail,
+      passwordHash: clinicAdminHash,
+      name: 'Dr. Efua Mansa',
+      role: 'CLINIC_SUPER_ADMIN',
+      phone: '+233 24 777 8899',
+      staffId: 'ABMC-ADM-001',
+      department: 'Clinic Administration',
+      title: 'Dr.',
+    },
+  });
+
+  await prisma.clinicStaffProfile.upsert({
+    where: { userId: clinicAdminUser.id },
+    update: {
+      clinicRole: 'CLINIC_SUPER_ADMIN',
+      isActive: true,
+    },
+    create: {
+      userId: clinicAdminUser.id,
+      clinicRole: 'CLINIC_SUPER_ADMIN',
+      staffNumber: 'ABMC-ADM-001',
+      specialty: 'Medical Administration',
+      phone: '+233 24 777 8899',
+      employmentStatus: 'ACTIVE',
+      canOverrideSchedule: true,
+      isActive: true,
+    },
+  });
+
+  await prisma.clinicConfiguration.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      clinicName: 'Action Boat Medical Centre',
+      tagline: 'Comprehensive Outpatient, Diagnostic & Family Healthcare',
+      phone: '+233 30 000 0000',
+      email: 'clinic@actionhealth.edu.gh',
+      address: 'Accra, Ghana',
+    },
+  });
+
+  await prisma.insuranceProvider.upsert({
+    where: { code: 'NHIS' },
+    update: {},
+    create: {
+      code: 'NHIS',
+      name: 'National Health Insurance Scheme (NHIS)',
+      providerType: 'PUBLIC',
+      isActive: true,
+    },
+  });
+
   console.log('\nLive test accounts ready:');
   console.log('------------------------------------------------------------');
-  console.log(`Admin    (${adminUser.role}):    ${adminEmail} / ${adminPassword}`);
-  console.log(`Lecturer (${lecturerUser.role}):       ${lecturerEmail} / ${lecturerPassword}`);
-  console.log(`Student  (${studentUser.role}):        ${studentEmail} / ${studentPassword}`);
+  console.log(`School Admin (${adminUser.role}):        ${adminEmail} / ${adminPassword}`);
+  console.log(`Clinic Admin (${clinicAdminUser.role}): ${clinicAdminEmail} / ${clinicAdminPassword}`);
+  console.log(`Lecturer     (${lecturerUser.role}):           ${lecturerEmail} / ${lecturerPassword}`);
+  console.log(`Student      (${studentUser.role}):            ${studentEmail} / ${studentPassword}`);
   console.log('------------------------------------------------------------\n');
 }
 

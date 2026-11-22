@@ -185,7 +185,7 @@ export async function PATCH(req: NextRequest) {
           title: 'Laboratory Result Released',
           message: `Your ${existing.test.name} result (${existing.requestNumber}) has been reviewed and released.`,
           type: 'LAB_RESULT',
-          link: '/portal/patient',
+          link: '/portal/clinic',
           dedupeKey: `lab-release-${id}`,
         });
       }

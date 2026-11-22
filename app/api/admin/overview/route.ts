@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     // Verify admin access
-    const isAuthorized = user && ['SUPER_ADMIN', 'CLINIC_ADMIN', 'SCHOOL_ADMIN', 'ADMISSIONS_OFFICER', 'FINANCE_OFFICER'].includes(user.role);
+    const isAuthorized = user && ['SUPER_ADMIN', 'SCHOOL_SUPER_ADMIN', 'SCHOOL_ADMIN', 'ADMISSIONS_OFFICER', 'FINANCE_OFFICER'].includes(user.role);
 
     const [
       totalStudents,
