@@ -115,9 +115,11 @@ export default function StudentExamsDirectoryPage() {
         ) : filteredExams.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 border border-slate-200 text-center space-y-2">
             <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-700">No examinations match this view.</p>
+            <p className="text-sm font-bold text-slate-700">No examination scheduled yet.</p>
             <p className="text-xs text-slate-500">
-              Scheduled examinations for your registered courses will appear here.
+              No examination has been scheduled for your{' '}
+              {trackConfig?.label || (student?.studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track')}{' '}
+              yet. Once the Administrator schedules and unlocks an exam for your track, it will appear here.
             </p>
           </div>
         ) : (

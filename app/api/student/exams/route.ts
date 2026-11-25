@@ -21,9 +21,12 @@ export async function GET() {
     });
     const registeredCourseIds = Array.from(new Set(registrations.map((r) => r.courseId)));
 
+    const studentTrack = normalizeStudyTrack((student as any).studyTrack);
+
     const exams = await prisma.examination.findMany({
       where: {
         isPublished: true,
+        OR: [{ studyTrack: studentTrack }, { studyTrack: null }],
         ...(registeredCourseIds.length > 0 ? { courseId: { in: registeredCourseIds } } : {}),
       },
       include: {
@@ -141,8 +144,6 @@ export async function GET() {
           : null,
       });
     }
-
-    const studentTrack = normalizeStudyTrack((student as any).studyTrack);
 
     return NextResponse.json({
       student: {

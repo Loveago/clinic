@@ -326,6 +326,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: true, result: updated });
     }
 
+    if (action === 'unschedule_exam' && examId) {
+      const updated = await prisma.examination.update({
+        where: { id: examId },
+        data: { isPublished: false, isLocked: true, status: 'UPCOMING' },
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'UNSCHEDULE_EXAM',
+        entityType: 'Examination',
+        entityId: examId,
+        details: { title: updated.title },
+      });
+      return NextResponse.json({ status: true, examination: updated });
+    }
+
     if (action === 'lock_exam' && examId) {
       const updated = await prisma.examination.update({
         where: { id: examId },
@@ -759,10 +776,14 @@ export async function POST(req: NextRequest) {
       const updated = await prisma.examination.update({
         where: { id: examId },
         data: {
-          ...(d.scheduledDate !== undefined ? { scheduledDate: d.scheduledDate } : {}),
-          ...(d.scheduledTime !== undefined ? { scheduledTime: d.scheduledTime } : {}),
-          ...(d.venue !== undefined ? { venue: d.venue } : {}),
+          ...(d.scheduledDate !== undefined && d.scheduledDate !== '' ? { scheduledDate: d.scheduledDate } : {}),
+          ...(d.scheduledTime !== undefined && d.scheduledTime !== '' ? { scheduledTime: d.scheduledTime } : {}),
+          ...(d.venue !== undefined && d.venue !== '' ? { venue: d.venue } : {}),
           ...(d.mode !== undefined ? { mode: d.mode } : {}),
+          ...(d.studyTrack !== undefined ? { studyTrack: d.studyTrack === 'ALL' || d.studyTrack === '' ? null : d.studyTrack } : {}),
+          ...(d.isPublished !== undefined ? { isPublished: Boolean(d.isPublished) } : { isPublished: true }),
+          ...(d.isLocked !== undefined ? { isLocked: Boolean(d.isLocked) } : {}),
+          status: d.status || 'ACTIVE',
           cohortId,
           startTime,
           endTime,

@@ -151,13 +151,16 @@ export default function AdminExaminationsPage() {
   // Scheduling state
   const [scheduleForm, setScheduleForm] = useState({
     examId: '',
-    scheduledDate: '',
-    scheduledTime: '',
+    studyTrack: '6_MONTH',
+    scheduledDate: new Date().toISOString().slice(0, 10),
+    scheduledTime: '09:00 AM',
     startTime: '',
     endTime: '',
-    venue: '',
+    venue: 'CBT Lab & Online Portal',
     cohortId: '',
     mode: 'ONLINE',
+    isPublished: true,
+    isLocked: true,
   });
   const [scheduleConflicts, setScheduleConflicts] = useState<any[]>([]);
 
@@ -962,8 +965,23 @@ export default function AdminExaminationsPage() {
 
         {/* TAB 4: SCHEDULING & CONFLICTS */}
         {activeTab === 'scheduling' && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 max-w-2xl">
-            <h2 className="font-bold text-sm">Schedule / Reschedule Examination</h2>
+          <div className="space-y-4 max-w-3xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="text-[11px] font-bold uppercase text-slate-500">6-Month Track Scheduled</div>
+                <div className="text-xl font-black text-[#073832] mt-1">
+                  {data.examinations.filter((e: any) => e.isPublished && e.studyTrack === '6_MONTH').length} Exams
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="text-[11px] font-bold uppercase text-slate-500">12-Month Track Scheduled</div>
+                <div className="text-xl font-black text-[#073832] mt-1">
+                  {data.examinations.filter((e: any) => e.isPublished && e.studyTrack === '12_MONTH').length} Exams
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <h2 className="font-bold text-sm">Schedule / Reschedule Examination by Track</h2>
             {scheduleConflicts.length > 0 && (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 space-y-1.5">
                 <div className="font-bold flex items-center gap-1.5">
@@ -1008,13 +1026,34 @@ export default function AdminExaminationsPage() {
               <select
                 required
                 value={scheduleForm.examId}
-                onChange={(e) => setScheduleForm({ ...scheduleForm, examId: e.target.value })}
+                onChange={(e) => {
+                  const chosen = data.examinations.find((ex: any) => ex.id === e.target.value);
+                  setScheduleForm({
+                    ...scheduleForm,
+                    examId: e.target.value,
+                    studyTrack: chosen?.studyTrack || scheduleForm.studyTrack,
+                    scheduledDate: chosen?.scheduledDate || scheduleForm.scheduledDate,
+                    scheduledTime: chosen?.scheduledTime || scheduleForm.scheduledTime,
+                    venue: chosen?.venue || scheduleForm.venue,
+                  });
+                }}
                 className="px-3 py-2 border border-slate-200 rounded-xl bg-white sm:col-span-2"
               >
                 <option value="">Select Examination</option>
                 {data.examinations.map((ex: any) => (
-                  <option key={ex.id} value={ex.id}>{ex.course?.code} — {ex.title}</option>
+                  <option key={ex.id} value={ex.id}>
+                    {ex.course?.code} — {ex.title} ({ex.isPublished ? 'Scheduled' : 'Unscheduled'})
+                  </option>
                 ))}
+              </select>
+              <select
+                value={scheduleForm.studyTrack}
+                onChange={(e) => setScheduleForm({ ...scheduleForm, studyTrack: e.target.value })}
+                className="px-3 py-2 border border-slate-200 rounded-xl bg-white sm:col-span-2 font-semibold"
+              >
+                <option value="6_MONTH">6-Month Intensive Track Only</option>
+                <option value="12_MONTH">12-Month Standard Track Only</option>
+                <option value="ALL">Both Tracks (6-Month &amp; 12-Month)</option>
               </select>
               <input
                 type="date"
@@ -1056,13 +1095,30 @@ export default function AdminExaminationsPage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={scheduleForm.isPublished}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, isPublished: e.target.checked })}
+                />
+                Publish &amp; Show on Student Track
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={!scheduleForm.isLocked}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, isLocked: !e.target.checked })}
+                />
+                Unlock Immediately for Writing
+              </label>
               <button
                 disabled={busy}
                 className="sm:col-span-2 py-2.5 bg-[#073832] text-white rounded-xl font-semibold"
               >
-                Save Schedule
+                Save &amp; Schedule Examination
               </button>
             </form>
+            </div>
           </div>
         )}
 
