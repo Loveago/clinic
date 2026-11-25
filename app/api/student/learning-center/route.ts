@@ -113,36 +113,48 @@ export async function GET() {
       }),
     ]);
 
+    const extractModuleNum = (title: string, fallback: number) => {
+      const m = title.match(/module\s*(\d+)/i);
+      return m ? Number(m[1]) : 1000 + fallback;
+    };
+
     const masteryMap = new Map(masteries.map((m) => [m.topicId, m]));
 
-    const topicsWithProgress = topics.map((t) => {
-      const m = masteryMap.get(t.id);
-      const topicQuizzes = assessments.filter((a) => a.topicId === t.id);
-      return {
-        id: t.id,
-        courseId: t.courseId,
-        materialId: t.materialId,
-        materialTitle: t.material.title,
-        title: t.title,
-        description: t.description,
-        summary: t.summary,
-        pageStart: t.pageStart,
-        pageEnd: t.pageEnd,
-        orderIndex: t.orderIndex,
-        subtopicsCount: t.subtopics.length,
-        quizzesCount: topicQuizzes.length,
-        primaryQuizId: topicQuizzes[0]?.id || null,
-        mastery: m || {
-          opened: false,
-          completed: false,
-          attemptsCount: 0,
-          bestScore: 0,
-          latestScore: 0,
-          averageScore: 0,
-          masteryStatus: 'NOT_STARTED',
-        },
-      };
-    });
+    const topicsWithProgress = topics
+      .map((t) => {
+        const m = masteryMap.get(t.id);
+        const topicQuizzes = assessments.filter((a) => a.topicId === t.id);
+        const courseObj = mergedEnrollments.find((e) => e.courseId === t.courseId)?.course;
+        return {
+          id: t.id,
+          courseId: t.courseId,
+          courseCode: courseObj?.code || '',
+          courseTitle: courseObj?.title || '',
+          materialId: t.materialId,
+          materialTitle: t.material.title,
+          moduleNumber: extractModuleNum(t.title, t.orderIndex),
+          title: t.title,
+          description: t.description,
+          summary: t.summary,
+          pageStart: t.pageStart,
+          pageEnd: t.pageEnd,
+          orderIndex: t.orderIndex,
+          subtopicsCount: t.subtopics.length,
+          quizzesCount: topicQuizzes.length,
+          primaryQuizId: topicQuizzes[0]?.id || null,
+          fileUrl: `/api/admin/learning-materials/${t.materialId}/pdf`,
+          mastery: m || {
+            opened: false,
+            completed: false,
+            attemptsCount: 0,
+            bestScore: 0,
+            latestScore: 0,
+            averageScore: 0,
+            masteryStatus: 'NOT_STARTED',
+          },
+        };
+      })
+      .sort((a, b) => a.moduleNumber - b.moduleNumber || a.orderIndex - b.orderIndex);
 
     const totalTopics = topicsWithProgress.length;
     const topicsCompleted = topicsWithProgress.filter((t) =>
@@ -204,18 +216,21 @@ export async function GET() {
           level: e.course.level,
           lecturerName: e.course.lecturer?.name || 'Department Faculty',
           progressPercent: progress,
-          materials: e.course.materials.map((m) => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            fileSize: m.fileSize,
-            pageCount: m.pageCount,
-            fileUrl: `/api/admin/learning-materials/${m.id}/pdf`,
-          })),
+          materials: [...e.course.materials]
+            .sort((a, b) => extractModuleNum(a.title, 999) - extractModuleNum(b.title, 999))
+            .map((m) => ({
+              id: m.id,
+              title: m.title,
+              description: m.description,
+              fileSize: m.fileSize,
+              pageCount: m.pageCount,
+              fileUrl: `/api/admin/learning-materials/${m.id}/pdf`,
+            })),
           topics: courseTopics,
           assessments: assessments.filter((a) => a.courseId === e.courseId),
         };
       }),
+      orderedModules: topicsWithProgress,
       recentAttempts: attempts.slice(0, 8),
       recentActivities: activities,
       revisionTopics: topicsWithProgress.filter(

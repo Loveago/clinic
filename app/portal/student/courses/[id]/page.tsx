@@ -295,7 +295,7 @@ export default function CourseLmsViewerPage() {
                     className="shrink-0 inline-flex items-center gap-2 bg-[#34d399] hover:bg-[#2bc489] text-[#073832] font-bold text-xs px-4 py-2.5 rounded-xl"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>PDF Learning Centre</span>
+                    <span>Learning Centre</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </Link>
                 </div>
@@ -308,7 +308,7 @@ export default function CourseLmsViewerPage() {
                     Published Course PDFs &amp; Extracted Topics
                   </h4>
                   <Link href="/portal/student/materials" className="text-xs font-bold text-emerald-700 hover:underline">
-                    Open PDF Learning Centre &rarr;
+                    Open Learning Centre &rarr;
                   </Link>
                 </div>
 

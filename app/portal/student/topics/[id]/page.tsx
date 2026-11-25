@@ -66,7 +66,7 @@ export default function StudentTopicReaderPage({ params }: { params: Promise<{ i
           <p className="text-sm font-bold text-red-600">{data?.error || 'Topic not found'}</p>
           <Link href="/portal/student/materials" className="inline-flex items-center gap-2 text-xs font-bold text-emerald-800">
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to PDF Learning Centre</span>
+            <span>Back to Learning Centre</span>
           </Link>
         </main>
       </>
@@ -91,7 +91,7 @@ export default function StudentTopicReaderPage({ params }: { params: Promise<{ i
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#073832]"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to PDF Learning Centre</span>
+            <span>Back to Learning Centre</span>
           </Link>
 
           <div className="flex flex-wrap items-center gap-2.5">

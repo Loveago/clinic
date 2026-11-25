@@ -92,7 +92,7 @@ export async function GET(
       });
     }
 
-    const [quizzes, siblingTopics] = await Promise.all([
+    const [quizzes, enrolledList, regList, progCourses] = await Promise.all([
       prisma.topicAssessment.findMany({
         where: { topicId: topic.id, status: 'PUBLISHED' },
         include: {
@@ -103,12 +103,35 @@ export async function GET(
           },
         },
       }),
-      prisma.extractedTopic.findMany({
-        where: { materialId: topic.materialId, status: 'PUBLISHED' },
-        orderBy: { orderIndex: 'asc' },
-        select: { id: true, title: true, orderIndex: true },
-      }),
+      prisma.courseEnrollment.findMany({ where: { studentId: student.id }, select: { courseId: true } }),
+      prisma.courseRegistration.findMany({ where: { studentId: student.id }, select: { courseId: true } }),
+      student.programmeId
+        ? prisma.course.findMany({ where: { programmeId: student.programmeId }, select: { id: true } })
+        : Promise.resolve([]),
     ]);
+
+    const allCourseIds = Array.from(
+      new Set([
+        topic.courseId,
+        ...enrolledList.map((e) => e.courseId),
+        ...regList.map((r) => r.courseId),
+        ...progCourses.map((c) => c.id),
+      ])
+    );
+
+    const rawSiblings = await prisma.extractedTopic.findMany({
+      where: { courseId: { in: allCourseIds }, status: 'PUBLISHED' },
+      select: { id: true, title: true, orderIndex: true, courseId: true },
+    });
+
+    const extractModuleNum = (title: string, fallback: number) => {
+      const m = title.match(/module\s*(\d+)/i);
+      return m ? Number(m[1]) : 1000 + fallback;
+    };
+
+    const siblingTopics = [...rawSiblings].sort(
+      (a, b) => extractModuleNum(a.title, a.orderIndex) - extractModuleNum(b.title, b.orderIndex) || a.orderIndex - b.orderIndex
+    );
 
     const currentIdx = siblingTopics.findIndex((t) => t.id === topic.id);
     const prevTopic = currentIdx > 0 ? siblingTopics[currentIdx - 1] : null;

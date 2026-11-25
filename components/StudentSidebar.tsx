@@ -44,7 +44,7 @@ export default function StudentSidebar({ mobileOpen, onCloseMobile }: StudentSid
   const navItems = [
     { label: 'Dashboard', href: '/portal/student/dashboard', icon: LayoutDashboard },
     { label: 'My Courses', href: '/portal/student/courses', icon: BookOpen },
-    { label: 'PDF Learning Centre', href: '/portal/student/materials', icon: FileText },
+    { label: 'Learning Centre', href: '/portal/student/materials', icon: FileText },
     { label: 'Revision Centre', href: '/portal/student/revision', icon: Sparkles },
     { label: 'Exams', href: '/portal/student/exams', icon: HelpCircle },
     { label: 'Results', href: '/portal/student/results', icon: Award },

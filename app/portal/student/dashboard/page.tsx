@@ -292,7 +292,7 @@ export default function StudentDashboardPage() {
               <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    PDF Learning &amp; Topic Mastery
+                    Learning &amp; Topic Mastery
                   </h3>
                   <Link href="/portal/student/materials" className="text-xs font-bold text-emerald-700 hover:underline">
                     Open Learning Centre →
@@ -382,7 +382,7 @@ export default function StudentDashboardPage() {
                   className="p-3 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-100 text-slate-800 flex items-center gap-2 transition-colors"
                 >
                   <FileText className="w-4 h-4 text-emerald-700" />
-                  <span>PDF Learning Centre</span>
+                  <span>Learning Centre</span>
                 </Link>
                 <Link
                   href="/portal/student/revision"
