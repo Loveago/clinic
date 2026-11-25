@@ -96,7 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
         badgeKey: 'totalLecturers',
       },
       {
-        label: 'PDF Learning & Topics',
+        label: 'Learning & Topics',
         href: '/portal/admin/learning',
         match: (p) => p.startsWith('/portal/admin/learning'),
         icon: FileText,
@@ -106,6 +106,12 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/portal/admin/examinations',
         match: (p, t) => p.startsWith('/portal/admin/examinations') || (p === '/portal/admin' && t === 'exams'),
         icon: Award,
+      },
+      {
+        label: 'Student Results & Academics',
+        href: '/portal/admin/results',
+        match: (p) => p.startsWith('/portal/admin/results'),
+        icon: GraduationCap,
       },
     ],
   },
