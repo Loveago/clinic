@@ -94,7 +94,7 @@ export async function GET(
 
     const [quizzes, enrolledList, regList, progCourses] = await Promise.all([
       prisma.topicAssessment.findMany({
-        where: { topicId: topic.id, status: 'PUBLISHED' },
+        where: { topicId: topic.id, status: 'PUBLISHED', assessmentType: 'TOPIC_QUIZ' },
         include: {
           _count: { select: { questions: true } },
           attempts: {

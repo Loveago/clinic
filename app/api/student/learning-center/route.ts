@@ -92,7 +92,7 @@ export async function GET() {
         orderBy: [{ courseId: 'asc' }, { orderIndex: 'asc' }],
       }),
       prisma.topicAssessment.findMany({
-        where: { courseId: { in: courseIds }, status: 'PUBLISHED' },
+        where: { courseId: { in: courseIds }, status: 'PUBLISHED', assessmentType: 'TOPIC_QUIZ' },
         include: {
           _count: { select: { questions: true } },
         },
