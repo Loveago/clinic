@@ -27,13 +27,30 @@ export async function GET(
       return NextResponse.json({ error: 'Topic not found or not published' }, { status: 404 });
     }
 
-    // Verify student is enrolled in this course
-    const enrollment = await prisma.courseEnrollment.findUnique({
-      where: { studentId_courseId: { studentId: student.id, courseId: topic.courseId } },
-      include: { course: { select: { id: true, code: true, title: true } } },
-    });
+    // Verify student is enrolled or registered in this course (or belongs to its programme)
+    const [enrollment, registration, courseRecord] = await Promise.all([
+      prisma.courseEnrollment.findUnique({
+        where: { studentId_courseId: { studentId: student.id, courseId: topic.courseId } },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      }),
+      prisma.courseRegistration.findFirst({
+        where: { studentId: student.id, courseId: topic.courseId },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      }),
+      prisma.course.findUnique({
+        where: { id: topic.courseId },
+        select: { id: true, code: true, title: true, programmeId: true },
+      }),
+    ]);
 
-    if (!enrollment) {
+    const resolvedCourse =
+      enrollment?.course ||
+      registration?.course ||
+      (courseRecord && courseRecord.programmeId === student.programmeId
+        ? { id: courseRecord.id, code: courseRecord.code, title: courseRecord.title }
+        : null);
+
+    if (!resolvedCourse) {
       return NextResponse.json(
         { error: 'Access denied: You are not enrolled in this course.' },
         { status: 403 }
@@ -106,7 +123,7 @@ export async function GET(
         structuredContent: topic.contentJson ? JSON.parse(topic.contentJson) : null,
         pdfUrl: `/api/admin/learning-materials/${topic.materialId}/pdf`,
       },
-      course: enrollment.course,
+      course: resolvedCourse,
       mastery,
       quizzes,
       prevTopic,

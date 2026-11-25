@@ -39,12 +39,29 @@ export async function GET(
       return NextResponse.json({ error: 'Assessment not found or not published' }, { status: 404 });
     }
 
-    const enrollment = await prisma.courseEnrollment.findUnique({
-      where: { studentId_courseId: { studentId: student.id, courseId: assessment.courseId } },
-      include: { course: { select: { id: true, code: true, title: true } } },
-    });
+    const [enrollment, registration, courseRecord] = await Promise.all([
+      prisma.courseEnrollment.findUnique({
+        where: { studentId_courseId: { studentId: student.id, courseId: assessment.courseId } },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      }),
+      prisma.courseRegistration.findFirst({
+        where: { studentId: student.id, courseId: assessment.courseId },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      }),
+      prisma.course.findUnique({
+        where: { id: assessment.courseId },
+        select: { id: true, code: true, title: true, programmeId: true },
+      }),
+    ]);
 
-    if (!enrollment) {
+    const resolvedCourse =
+      enrollment?.course ||
+      registration?.course ||
+      (courseRecord && courseRecord.programmeId === student.programmeId
+        ? { id: courseRecord.id, code: courseRecord.code, title: courseRecord.title }
+        : null);
+
+    if (!resolvedCourse) {
       return NextResponse.json(
         { error: 'Access denied: You are not enrolled in this course.' },
         { status: 403 }
@@ -137,7 +154,7 @@ export async function GET(
         allowReview: assessment.allowReview,
         showExplanations: assessment.showExplanations,
         topic: assessment.topic,
-        course: enrollment.course,
+        course: resolvedCourse,
       },
       questions: sanitizedQuestions,
       activeAttempt,
@@ -174,10 +191,19 @@ export async function POST(
       return NextResponse.json({ error: 'Assessment not found or not published' }, { status: 404 });
     }
 
-    const enrollment = await prisma.courseEnrollment.findUnique({
-      where: { studentId_courseId: { studentId: student.id, courseId: assessment.courseId } },
-    });
-    if (!enrollment) {
+    const [enrollment, registration, courseRecord] = await Promise.all([
+      prisma.courseEnrollment.findUnique({
+        where: { studentId_courseId: { studentId: student.id, courseId: assessment.courseId } },
+      }),
+      prisma.courseRegistration.findFirst({
+        where: { studentId: student.id, courseId: assessment.courseId },
+      }),
+      prisma.course.findUnique({
+        where: { id: assessment.courseId },
+        select: { id: true, programmeId: true },
+      }),
+    ]);
+    if (!enrollment && !registration && courseRecord?.programmeId !== student.programmeId) {
       return NextResponse.json({ error: 'Access denied: Not enrolled in course' }, { status: 403 });
     }
 

@@ -9,22 +9,78 @@ export async function GET() {
       return NextResponse.json({ error: 'Student record not found' }, { status: 404 });
     }
 
-    const enrollments = await prisma.courseEnrollment.findMany({
-      where: { studentId: student.id },
-      include: {
-        course: {
-          include: {
-            lecturer: { select: { name: true } },
-            materials: {
-              where: { status: 'PUBLISHED', fileType: 'PDF' },
-              orderBy: { createdAt: 'desc' },
+    const [enrollments, registrations] = await Promise.all([
+      prisma.courseEnrollment.findMany({
+        where: { studentId: student.id },
+        include: {
+          course: {
+            include: {
+              lecturer: { select: { name: true } },
+              materials: {
+                where: { status: 'PUBLISHED', fileType: 'PDF' },
+                orderBy: { createdAt: 'desc' },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      prisma.courseRegistration.findMany({
+        where: { studentId: student.id },
+        include: {
+          course: {
+            include: {
+              lecturer: { select: { name: true } },
+              materials: {
+                where: { status: 'PUBLISHED', fileType: 'PDF' },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          },
+        },
+      }),
+    ]);
 
-    const courseIds = enrollments.map((e) => e.courseId);
+    const courseMap = new Map<string, (typeof enrollments)[number]>();
+    for (const e of enrollments) {
+      courseMap.set(e.courseId, e);
+    }
+    for (const r of registrations) {
+      if (!courseMap.has(r.courseId)) {
+        courseMap.set(r.courseId, {
+          id: r.id,
+          studentId: r.studentId,
+          courseId: r.courseId,
+          enrolledAt: r.registeredAt,
+          course: r.course,
+        } as (typeof enrollments)[number]);
+      }
+    }
+
+    // Fallback: if student has no explicit enrollments/registrations yet, load their programme courses
+    if (courseMap.size === 0 && student.programmeId) {
+      const progCourses = await prisma.course.findMany({
+        where: { programmeId: student.programmeId },
+        include: {
+          lecturer: { select: { name: true } },
+          materials: {
+            where: { status: 'PUBLISHED', fileType: 'PDF' },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+      for (const c of progCourses) {
+        courseMap.set(c.id, {
+          id: c.id,
+          studentId: student.id,
+          courseId: c.id,
+          enrolledAt: new Date(),
+          course: c,
+        } as (typeof enrollments)[number]);
+      }
+    }
+
+    const mergedEnrollments = Array.from(courseMap.values());
+    const courseIds = mergedEnrollments.map((e) => e.courseId);
 
     const [topics, assessments, masteries, attempts, activities] = await Promise.all([
       prisma.extractedTopic.findMany({
@@ -118,8 +174,8 @@ export async function GET() {
         programme: student.programme?.name,
       },
       stats: {
-        enrolledCourses: enrollments.length,
-        availableMaterials: enrollments.reduce((s, e) => s + e.course.materials.length, 0),
+        enrolledCourses: mergedEnrollments.length,
+        availableMaterials: mergedEnrollments.reduce((s, e) => s + e.course.materials.length, 0),
         totalTopics,
         topicsCompleted,
         topicsInProgress,
@@ -129,7 +185,7 @@ export async function GET() {
         completedQuizzes: attemptedAssessmentIds.size,
         averageScore: avgScore,
       },
-      courses: enrollments.map((e) => {
+      courses: mergedEnrollments.map((e) => {
         const courseTopics = topicsWithProgress.filter((t) => t.courseId === e.courseId);
         const doneCount = courseTopics.filter((t) =>
           ['COMPLETED', 'MASTERED'].includes(t.mastery.masteryStatus)
@@ -137,7 +193,7 @@ export async function GET() {
         const progress =
           courseTopics.length > 0
             ? Math.round((doneCount / courseTopics.length) * 100)
-            : e.progressPercent;
+            : e.progressPercent ?? 0;
 
         return {
           id: e.course.id,
