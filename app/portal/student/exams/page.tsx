@@ -21,6 +21,7 @@ import StudentHeader from '@/components/StudentHeader';
 export default function StudentExamsDirectoryPage() {
   const [exams, setExams] = useState<any[]>([]);
   const [student, setStudent] = useState<any>(null);
+  const [trackConfig, setTrackConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'AVAILABLE' | 'COMPLETED'>('ALL');
   const [slipExam, setSlipExam] = useState<any>(null);
@@ -31,6 +32,7 @@ export default function StudentExamsDirectoryPage() {
       .then((data) => {
         if (Array.isArray(data.exams)) setExams(data.exams);
         if (data.student) setStudent(data.student);
+        if (data.trackConfig) setTrackConfig(data.trackConfig);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -69,6 +71,12 @@ export default function StudentExamsDirectoryPage() {
                 <p className="font-semibold text-white">{student.name} ({student.studentId})</p>
                 <p className="text-emerald-200">
                   Account: <span className="font-bold">{student.status}</span>
+                </p>
+                <p className="text-emerald-200">
+                  Track:{' '}
+                  <span className="font-bold text-white">
+                    {trackConfig?.label || (student.studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track')}
+                  </span>
                 </p>
                 {student.outstandingBalance > 0 && (
                   <p className="text-amber-300 font-semibold">
@@ -142,6 +150,18 @@ export default function StudentExamsDirectoryPage() {
                             <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
                               {exam.mode || 'ONLINE'}
                             </span>
+                            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+                              {exam.studyTrack === '6_MONTH'
+                                ? '6-Month Track'
+                                : exam.studyTrack === '12_MONTH'
+                                ? '12-Month Track'
+                                : 'All Tracks'}
+                            </span>
+                            {exam.isLocked && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full">
+                                <Lock className="w-2.5 h-2.5" /> Locked by Admin
+                              </span>
+                            )}
                           </div>
                           <h4 className="text-base font-bold text-slate-900 mt-1">{exam.title}</h4>
                           {exam.periodTitle && (
@@ -183,6 +203,30 @@ export default function StudentExamsDirectoryPage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Objective & Written / Essay Sections Breakdown */}
+                    {Array.isArray(exam.sections) && exam.sections.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {exam.sections.map((sec: any) => {
+                          const isWritten = sec.sectionType === 'WRITTEN';
+                          return (
+                            <div
+                              key={sec.id || sec.title}
+                              className={`flex-1 min-w-[140px] px-3 py-2 rounded-xl border text-[11px] ${
+                                isWritten
+                                  ? 'bg-indigo-50/70 border-indigo-200 text-indigo-900'
+                                  : 'bg-teal-50/70 border-teal-200 text-teal-900'
+                              }`}
+                            >
+                              <div className="font-bold truncate">{sec.title}</div>
+                              <div className="text-[10px] opacity-80">
+                                {isWritten ? 'Written / Essay' : 'Objective (MCQ)'} · {sec.questionCount ?? 0} Qs ({sec.marksAllocated ?? 0} marks)
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Eligibility / Financial Clearance Warning */}
                     {!hasActive && !eligible && reasons.length > 0 && (
@@ -262,6 +306,14 @@ export default function StudentExamsDirectoryPage() {
                           Resume Exam ({Math.ceil((exam.activeAttempt.remainingSeconds || 0) / 60)}m left)
                         </span>
                       </Link>
+                    ) : exam.isLocked ? (
+                      <button
+                        disabled
+                        className="flex-1 py-3 px-4 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Locked by Admin</span>
+                      </button>
                     ) : eligible ? (
                       <Link
                         href={`/portal/student/exams/start?id=${exam.id}`}

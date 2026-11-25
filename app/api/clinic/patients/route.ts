@@ -5,6 +5,7 @@ import {
   CLINIC_RECEPTION_ROLES,
   CLINIC_ADMIN_ROLES,
   normalizeGhanaPhone,
+  calculateBmi,
   logClinicAudit,
 } from '@/lib/clinic-auth';
 
@@ -44,6 +45,15 @@ export async function GET(req: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
+          insurances: {
+            include: { provider: true },
+            orderBy: { createdAt: 'desc' },
+          },
+          identifiers: true,
+          triageRecords: {
+            orderBy: { triagedAt: 'desc' },
+            take: 1,
+          },
           _count: {
             select: {
               appointments: true,
@@ -150,6 +160,57 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Optional Genotype identifier
+    if (body.genotype && String(body.genotype).trim()) {
+      await prisma.patientIdentifier.create({
+        data: {
+          patientId: patient.id,
+          identifierType: 'GENOTYPE',
+          identifierValue: String(body.genotype).trim().toUpperCase(),
+          isPrimary: true,
+        },
+      });
+    }
+
+    // Optional Baseline Height / Weight / BMI via TriageRecord
+    const weightKg = body.weightKg ? Number(body.weightKg) : null;
+    const heightCm = body.heightCm ? Number(body.heightCm) : null;
+    if ((weightKg && weightKg > 0) || (heightCm && heightCm > 0)) {
+      await prisma.triageRecord.create({
+        data: {
+          patientId: patient.id,
+          triageCategory: 'NON_URGENT',
+          chiefComplaint: 'Baseline Registration Vitals',
+          weightKg: weightKg && weightKg > 0 ? weightKg : null,
+          heightCm: heightCm && heightCm > 0 ? heightCm : null,
+          bmi: calculateBmi(weightKg, heightCm),
+          nurseName: auth.name || 'Registration Staff',
+        },
+      });
+    }
+
+    // Optional NHIS / Insurance
+    const insNum = body.insuranceNumber ? String(body.insuranceNumber).trim() : '';
+    const insCode = body.insuranceProviderCode ? String(body.insuranceProviderCode).trim().toUpperCase() : '';
+    const insProvId = body.insuranceProviderId ? String(body.insuranceProviderId).trim() : '';
+    if (insNum && (insProvId || insCode)) {
+      const provider = insProvId
+        ? await prisma.insuranceProvider.findUnique({ where: { id: insProvId } })
+        : await prisma.insuranceProvider.findUnique({ where: { code: insCode } });
+      if (provider) {
+        await prisma.patientInsurance.create({
+          data: {
+            patientId: patient.id,
+            providerId: provider.id,
+            membershipNumber: insNum,
+            expiryDate: body.insuranceExpiry ? String(body.insuranceExpiry).trim() : null,
+            verificationStatus: 'PENDING',
+            isPrimary: true,
+          },
+        });
+      }
+    }
+
     await logClinicAudit({
       actorId: auth.userId,
       actorName: auth.name,
@@ -190,9 +251,16 @@ export async function PATCH(req: NextRequest) {
         ...(body.fullName !== undefined ? { fullName: String(body.fullName).trim() } : {}),
         ...(body.dateOfBirth !== undefined ? { dateOfBirth: body.dateOfBirth || null } : {}),
         ...(body.gender !== undefined ? { gender: String(body.gender) } : {}),
+        ...(body.maritalStatus !== undefined ? { maritalStatus: body.maritalStatus || null } : {}),
+        ...(body.nationality !== undefined ? { nationality: body.nationality || null } : {}),
+        ...(body.ghanaCardNumber !== undefined ? { ghanaCardNumber: body.ghanaCardNumber || null } : {}),
         ...(body.phone !== undefined ? { phone: normalizeGhanaPhone(String(body.phone)) } : {}),
+        ...(body.altPhone !== undefined ? { altPhone: body.altPhone ? normalizeGhanaPhone(String(body.altPhone)) : null } : {}),
         ...(body.email !== undefined ? { email: body.email ? String(body.email).trim().toLowerCase() : null } : {}),
         ...(body.address !== undefined ? { address: body.address || null } : {}),
+        ...(body.townCity !== undefined ? { townCity: body.townCity || null } : {}),
+        ...(body.region !== undefined ? { region: body.region || null } : {}),
+        ...(body.occupation !== undefined ? { occupation: body.occupation || null } : {}),
         ...(body.bloodGroup !== undefined ? { bloodGroup: body.bloodGroup || null } : {}),
         ...(body.allergies !== undefined ? { allergies: body.allergies || null } : {}),
         ...(body.chronicConditions !== undefined ? { chronicConditions: body.chronicConditions || null } : {}),
@@ -201,9 +269,83 @@ export async function PATCH(req: NextRequest) {
           ? { emergencyPhone: body.emergencyPhone ? normalizeGhanaPhone(String(body.emergencyPhone)) : null }
           : {}),
         ...(body.emergencyRelation !== undefined ? { emergencyRelation: body.emergencyRelation || null } : {}),
+        ...(body.nextOfKinName !== undefined ? { nextOfKinName: body.nextOfKinName || null } : {}),
+        ...(body.nextOfKinPhone !== undefined
+          ? { nextOfKinPhone: body.nextOfKinPhone ? normalizeGhanaPhone(String(body.nextOfKinPhone)) : null }
+          : {}),
+        ...(body.nextOfKinRelation !== undefined ? { nextOfKinRelation: body.nextOfKinRelation || null } : {}),
         ...(body.status !== undefined ? { status: String(body.status) } : {}),
       },
     });
+
+    if (body.genotype !== undefined) {
+      const existingGeno = await prisma.patientIdentifier.findFirst({
+        where: { patientId: id, identifierType: 'GENOTYPE' },
+      });
+      const val = String(body.genotype || '').trim().toUpperCase();
+      if (val) {
+        if (existingGeno) {
+          await prisma.patientIdentifier.update({
+            where: { id: existingGeno.id },
+            data: { identifierValue: val },
+          });
+        } else {
+          await prisma.patientIdentifier.create({
+            data: { patientId: id, identifierType: 'GENOTYPE', identifierValue: val, isPrimary: true },
+          });
+        }
+      }
+    }
+
+    const weightKg = body.weightKg ? Number(body.weightKg) : null;
+    const heightCm = body.heightCm ? Number(body.heightCm) : null;
+    if ((weightKg && weightKg > 0) || (heightCm && heightCm > 0)) {
+      await prisma.triageRecord.create({
+        data: {
+          patientId: id,
+          triageCategory: 'NON_URGENT',
+          chiefComplaint: 'Profile Vitals Update',
+          weightKg: weightKg && weightKg > 0 ? weightKg : null,
+          heightCm: heightCm && heightCm > 0 ? heightCm : null,
+          bmi: calculateBmi(weightKg, heightCm),
+          nurseName: auth.name || 'Clinic Staff',
+        },
+      });
+    }
+
+    const insNum = body.insuranceNumber ? String(body.insuranceNumber).trim() : '';
+    const insCode = body.insuranceProviderCode ? String(body.insuranceProviderCode).trim().toUpperCase() : '';
+    const insProvId = body.insuranceProviderId ? String(body.insuranceProviderId).trim() : '';
+    if (insNum && (insProvId || insCode)) {
+      const provider = insProvId
+        ? await prisma.insuranceProvider.findUnique({ where: { id: insProvId } })
+        : await prisma.insuranceProvider.findUnique({ where: { code: insCode } });
+      if (provider) {
+        const existingIns = await prisma.patientInsurance.findFirst({
+          where: { patientId: id, providerId: provider.id },
+        });
+        if (existingIns) {
+          await prisma.patientInsurance.update({
+            where: { id: existingIns.id },
+            data: {
+              membershipNumber: insNum,
+              expiryDate: body.insuranceExpiry ? String(body.insuranceExpiry).trim() : existingIns.expiryDate,
+            },
+          });
+        } else {
+          await prisma.patientInsurance.create({
+            data: {
+              patientId: id,
+              providerId: provider.id,
+              membershipNumber: insNum,
+              expiryDate: body.insuranceExpiry ? String(body.insuranceExpiry).trim() : null,
+              verificationStatus: 'PENDING',
+              isPrimary: true,
+            },
+          });
+        }
+      }
+    }
 
     await logClinicAudit({
       actorId: auth.userId,

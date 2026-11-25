@@ -6,7 +6,19 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     // Verify admin access
-    const isAuthorized = user && ['SUPER_ADMIN', 'SCHOOL_SUPER_ADMIN', 'SCHOOL_ADMIN', 'ADMISSIONS_OFFICER', 'FINANCE_OFFICER'].includes(user.role);
+    const isAuthorized =
+      user &&
+      [
+        'SUPER_ADMIN',
+        'SCHOOL_SUPER_ADMIN',
+        'SCHOOL_ADMIN',
+        'ADMISSIONS_OFFICER',
+        'FINANCE_OFFICER',
+        'EXAM_OFFICER',
+      ].includes(user.role);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
     const [
       totalStudents,
@@ -75,9 +87,10 @@ export async function GET() {
     ]);
 
     // Financial calculations in GHS
+    const activeInvoices = allInvoices.filter((inv) => inv.status !== 'CANCELLED');
     const totalFeesCollected = allPayments.reduce((sum, p) => sum + p.amount, 0);
-    const totalInvoiced = allInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalOutstandingFees = Math.max(0, totalInvoiced - totalFeesCollected);
+    const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalOutstandingFees = activeInvoices.reduce((sum, inv) => sum + Math.max(0, inv.balance), 0);
 
     // Grade Distribution for Charts
     const gradeDistribution: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, F: 0 };

@@ -16,22 +16,154 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const unbilledForPatientId = searchParams.get('unbilledForPatientId');
+
+    if (unbilledForPatientId) {
+      const [prescriptions, labRequests, imagingRequests, procedureRecords, existingInvoices] =
+        await Promise.all([
+          prisma.prescription.findMany({
+            where: {
+              patientId: unbilledForPatientId,
+              status: { in: ['ISSUED', 'PARTIALLY_DISPENSED', 'DISPENSED'] },
+            },
+            include: { items: { include: { medicine: true } } },
+            orderBy: { issuedAt: 'desc' },
+            take: 15,
+          }),
+          prisma.labRequest.findMany({
+            where: { patientId: unbilledForPatientId, status: { not: 'CANCELLED' } },
+            include: { test: true },
+            orderBy: { createdAt: 'desc' },
+            take: 25,
+          }),
+          prisma.imagingRequest.findMany({
+            where: { patientId: unbilledForPatientId, status: { not: 'CANCELLED' } },
+            include: { imaging: true },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+          }),
+          prisma.procedureRecord.findMany({
+            where: { patientId: unbilledForPatientId, status: { not: 'CANCELLED' } },
+            include: { procedure: true },
+            orderBy: { procedureDate: 'desc' },
+            take: 20,
+          }),
+          prisma.clinicInvoice.findMany({
+            where: { patientId: unbilledForPatientId, status: { not: 'CANCELLED' } },
+            select: { items: { select: { referenceId: true } } },
+          }),
+        ]);
+
+      const invoicedRefs = new Set(
+        existingInvoices.flatMap((inv) => inv.items.map((it) => it.referenceId).filter(Boolean))
+      );
+
+      const unbilledItems: Array<{
+        itemType: string;
+        referenceId: string;
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        sourceLabel: string;
+        createdAt: string;
+        alreadyInvoiced: boolean;
+      }> = [];
+
+      for (const rx of prescriptions) {
+        for (const item of rx.items) {
+          const price = item.medicine?.sellingPrice ?? 0;
+          unbilledItems.push({
+            itemType: 'MEDICINE',
+            referenceId: item.id,
+            description: `${item.medicineName} (${item.dosage}, ${item.frequency} x ${item.duration})`,
+            quantity: Math.max(1, item.quantityPrescribed || 1),
+            unitPrice: Number(price.toFixed(2)),
+            sourceLabel: `Rx ${rx.prescriptionNumber}`,
+            createdAt: rx.issuedAt.toISOString(),
+            alreadyInvoiced: invoicedRefs.has(item.id),
+          });
+        }
+      }
+
+      for (const lab of labRequests) {
+        unbilledItems.push({
+          itemType: 'LAB_TEST',
+          referenceId: lab.id,
+          description: `${lab.test.name} (${lab.test.code})`,
+          quantity: 1,
+          unitPrice: Number((lab.test.priceGHS || 0).toFixed(2)),
+          sourceLabel: `Lab ${lab.requestNumber}`,
+          createdAt: lab.createdAt.toISOString(),
+          alreadyInvoiced: invoicedRefs.has(lab.id),
+        });
+      }
+
+      for (const img of imagingRequests) {
+        unbilledItems.push({
+          itemType: 'IMAGING',
+          referenceId: img.id,
+          description: `${img.imaging.name} (${img.imaging.modality})`,
+          quantity: 1,
+          unitPrice: Number((img.imaging.priceGHS || 0).toFixed(2)),
+          sourceLabel: `Img ${img.requestNumber}`,
+          createdAt: img.createdAt.toISOString(),
+          alreadyInvoiced: invoicedRefs.has(img.id),
+        });
+      }
+
+      for (const proc of procedureRecords) {
+        unbilledItems.push({
+          itemType: 'PROCEDURE',
+          referenceId: proc.id,
+          description: `${proc.procedure.name} (${proc.procedure.category})`,
+          quantity: 1,
+          unitPrice: Number((proc.chargeGHS || proc.procedure.priceGHS || 0).toFixed(2)),
+          sourceLabel: `Proc ${proc.procedureNumber}`,
+          createdAt: proc.createdAt.toISOString(),
+          alreadyInvoiced: invoicedRefs.has(proc.id),
+        });
+      }
+
+      return NextResponse.json({ unbilledItems });
+    }
+
     const patientId = searchParams.get('patientId') || undefined;
     const status = searchParams.get('status') || undefined;
+    const search = searchParams.get('search')?.trim() || '';
 
     const invoices = await prisma.clinicInvoice.findMany({
       where: {
         ...(patientId ? { patientId } : {}),
         ...(status ? { status } : {}),
+        ...(search
+          ? {
+              OR: [
+                { invoiceNumber: { contains: search } },
+                { title: { contains: search } },
+                { patient: { fullName: { contains: search } } },
+                { patient: { patientNumber: { contains: search } } },
+              ],
+            }
+          : {}),
       },
       include: {
-        patient: { select: { id: true, patientNumber: true, fullName: true, phone: true, email: true } },
+        patient: {
+          select: {
+            id: true,
+            patientNumber: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            ghanaCardNumber: true,
+            address: true,
+          },
+        },
         items: true,
         payments: { orderBy: { createdAt: 'desc' } },
         refunds: { orderBy: { createdAt: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 80,
+      take: 100,
     });
 
     return NextResponse.json({ invoices });
@@ -101,7 +233,22 @@ export async function POST(req: NextRequest) {
         createdById: auth.userId || null,
         items: { create: computedItems },
       },
-      include: { items: true, patient: { select: { id: true, patientNumber: true, fullName: true } } },
+      include: {
+        items: true,
+        payments: true,
+        refunds: true,
+        patient: {
+          select: {
+            id: true,
+            patientNumber: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            ghanaCardNumber: true,
+            address: true,
+          },
+        },
+      },
     });
 
     await logClinicAudit({
@@ -194,11 +341,26 @@ export async function PATCH(req: NextRequest) {
             balance: newBalance,
             status: nextStatus,
           },
-          include: { items: true, payments: true, refunds: true },
+          include: {
+            items: true,
+            payments: { orderBy: { createdAt: 'desc' } },
+            refunds: { orderBy: { createdAt: 'desc' } },
+            patient: {
+              select: {
+                id: true,
+                patientNumber: true,
+                fullName: true,
+                phone: true,
+                email: true,
+                ghanaCardNumber: true,
+                address: true,
+              },
+            },
+          },
         });
 
         return { payment, invoice };
-      });
+      }, { timeout: 20000 });
 
       await logClinicAudit({
         actorId: auth.userId,
@@ -259,10 +421,25 @@ export async function PATCH(req: NextRequest) {
         const invoice = await tx.clinicInvoice.update({
           where: { id: existing.id },
           data: { amountPaid: newPaid, balance: newBalance, status: nextStatus },
-          include: { items: true, payments: true, refunds: true },
+          include: {
+            items: true,
+            payments: { orderBy: { createdAt: 'desc' } },
+            refunds: { orderBy: { createdAt: 'desc' } },
+            patient: {
+              select: {
+                id: true,
+                patientNumber: true,
+                fullName: true,
+                phone: true,
+                email: true,
+                ghanaCardNumber: true,
+                address: true,
+              },
+            },
+          },
         });
         return { refund, invoice };
-      });
+      }, { timeout: 20000 });
 
       await logClinicAudit({
         actorId: auth.userId,
@@ -277,6 +454,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(result);
     }
 
+    if (action === 'issue_draft') {
+      if (existing.status !== 'DRAFT') {
+        return NextResponse.json({ error: 'Only DRAFT invoices can be finalized.' }, { status: 400 });
+      }
+      const updated = await prisma.clinicInvoice.update({
+        where: { id: existing.id },
+        data: { status: existing.balance <= 0.01 ? 'PAID' : 'UNPAID' },
+        include: { items: true, payments: true, refunds: true, patient: { select: { id: true, patientNumber: true, fullName: true, phone: true, email: true, ghanaCardNumber: true, address: true } } },
+      });
+      return NextResponse.json({ invoice: updated });
+    }
+
     if (action === 'cancel') {
       if (existing.amountPaid > 0) {
         return NextResponse.json(
@@ -287,6 +476,7 @@ export async function PATCH(req: NextRequest) {
       const updated = await prisma.clinicInvoice.update({
         where: { id: existing.id },
         data: { status: 'CANCELLED', balance: 0 },
+        include: { items: true, payments: true, refunds: true, patient: { select: { id: true, patientNumber: true, fullName: true, phone: true, email: true, ghanaCardNumber: true, address: true } } },
       });
       await logClinicAudit({
         actorId: auth.userId,
@@ -318,7 +508,22 @@ export async function PATCH(req: NextRequest) {
           balance,
           status: balance <= 0.01 ? 'PAID' : existing.amountPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID',
         },
-        include: { items: true, payments: true, refunds: true },
+        include: {
+          items: true,
+          payments: { orderBy: { createdAt: 'desc' } },
+          refunds: { orderBy: { createdAt: 'desc' } },
+          patient: {
+            select: {
+              id: true,
+              patientNumber: true,
+              fullName: true,
+              phone: true,
+              email: true,
+              ghanaCardNumber: true,
+              address: true,
+            },
+          },
+        },
       });
       await logClinicAudit({
         actorId: auth.userId,

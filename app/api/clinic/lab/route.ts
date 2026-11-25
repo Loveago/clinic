@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
           ...(patientId ? { patientId } : {}),
         },
         include: {
-          patient: { select: { id: true, patientNumber: true, fullName: true, gender: true } },
+          patient: { select: { id: true, patientNumber: true, fullName: true, gender: true, dateOfBirth: true, phone: true } },
           test: true,
           requestedBy: { include: { user: { select: { name: true, title: true } } } },
           consultation: { select: { id: true, consultationNumber: true } },
@@ -193,7 +193,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ request: updatedReq });
     }
 
-    const auth = await authorizeClinicStaff(CLINIC_LAB_ROLES);
+    const auth = await authorizeClinicStaff([...CLINIC_LAB_ROLES, 'NURSE', 'MIDWIFE']);
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: auth.status || 403 });
     }
@@ -272,11 +272,15 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data: {
         status: nextStatus,
-        ...(nextStatus === 'SAMPLE_COLLECTED' && !existing.sampleCollectedAt
-          ? { sampleCollectedAt: new Date() }
+        ...(nextStatus === 'SAMPLE_COLLECTED'
+          ? {
+              sampleStatus: 'COLLECTED',
+              sampleId: existing.sampleId || `SMP-${existing.requestNumber}`,
+              ...(existing.sampleCollectedAt ? {} : { sampleCollectedAt: new Date() }),
+            }
           : {}),
       },
-      include: { test: true, result: true, patient: { select: { id: true, patientNumber: true, fullName: true } } },
+      include: { test: true, result: true, patient: { select: { id: true, patientNumber: true, fullName: true, gender: true, dateOfBirth: true, phone: true } } },
     });
 
     return NextResponse.json({ request: updated });

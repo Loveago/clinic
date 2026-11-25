@@ -23,6 +23,10 @@ export default function StudentCoursesPage() {
   const [registeredCourses, setRegisteredCourses] = useState<any[]>([]);
   const [attendanceByCourse, setAttendanceByCourse] = useState<Record<string, any>>({});
   const [studentMeta, setStudentMeta] = useState<any>(null);
+  const [trackConfig, setTrackConfig] = useState<any>(null);
+  const [availableTracks, setAvailableTracks] = useState<any[]>([]);
+  const [switchingTrack, setSwitchingTrack] = useState(false);
+  const [learningTopics, setLearningTopics] = useState<any[]>([]);
   const [totalCredits, setTotalCredits] = useState(0);
   const [maxCreditLimit, setMaxCreditLimit] = useState(24);
   const [activeTab, setActiveTab] = useState<'enrolled' | 'registration'>('enrolled');
@@ -33,18 +37,24 @@ export default function StudentCoursesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [coursesRes, regRes, attRes] = await Promise.all([
+      const [coursesRes, regRes, attRes, lcRes] = await Promise.all([
         fetch('/api/student/courses').then((r) => r.json()),
         fetch('/api/student/registration').then((r) => r.json()),
         fetch('/api/student/attendance').then((r) => r.json()).catch(() => ({})),
+        fetch('/api/student/learning-center').then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (coursesRes.courses) {
         setCourses(coursesRes.courses);
       }
+      if (Array.isArray(lcRes.topics)) {
+        setLearningTopics(lcRes.topics);
+      }
       if (regRes.availableCourses) setAvailableCourses(regRes.availableCourses);
       if (regRes.registeredCourses) setRegisteredCourses(regRes.registeredCourses);
       if (regRes.student) setStudentMeta(regRes.student);
+      if (regRes.trackConfig) setTrackConfig(regRes.trackConfig);
+      if (Array.isArray(regRes.availableTracks)) setAvailableTracks(regRes.availableTracks);
       if (typeof regRes.totalRegisteredCredits === 'number') {
         setTotalCredits(regRes.totalRegisteredCredits);
       }
@@ -116,6 +126,32 @@ export default function StudentCoursesPage() {
     }
   };
 
+  const handleSetTrack = async (studyTrack: '6_MONTH' | '12_MONTH') => {
+    if (studentMeta?.studyTrack === studyTrack) return;
+    setSwitchingTrack(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await fetch('/api/student/registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_track', studyTrack }),
+      });
+      const d = await res.json();
+      if (res.ok && d.status !== false) {
+        setActionSuccess(`Study track updated to ${studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track'}.`);
+        await loadData();
+        setTimeout(() => setActionSuccess(null), 3500);
+      } else {
+        setActionError(d.error || 'Failed to update study track.');
+      }
+    } catch {
+      setActionError('Network error while updating study track.');
+    } finally {
+      setSwitchingTrack(false);
+    }
+  };
+
   const regByCourseId = new Map(registeredCourses.map((r: any) => [r.courseId, r]));
 
   const computeCourseProgress = (course: any) => {
@@ -147,6 +183,60 @@ export default function StudentCoursesPage() {
           <div className="bg-rose-50 border border-rose-300 text-rose-800 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             {actionError}
+          </div>
+        )}
+
+        {/* 6-Month vs 12-Month Study Track Banner */}
+        {(studentMeta || trackConfig) && (
+          <div className="bg-gradient-to-r from-[#073832] to-emerald-900 text-white rounded-3xl p-5 sm:p-6 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
+                  Active Study Track
+                </span>
+                <span className="text-xs font-bold text-emerald-300">
+                  {trackConfig?.label || (studentMeta?.studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track')}
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/85 max-w-2xl">
+                {trackConfig?.description ||
+                  (studentMeta?.studyTrack === '6_MONTH'
+                    ? 'Complete Modules 1–13 in 1 intensive 6-month semester, followed by your Final Examination.'
+                    : 'Complete Modules 1–13 over 12 months (2 semesters) with End-of-Semester and Final Examinations.')}
+              </p>
+              {Array.isArray(trackConfig?.requiredExams) && trackConfig.requiredExams.length > 0 && (
+                <p className="text-[11px] text-emerald-200/90 font-semibold">
+                  Required Exams: {trackConfig.requiredExams.join(' → ')}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 bg-emerald-950/50 p-1.5 rounded-2xl border border-emerald-700/50 shrink-0">
+              {(availableTracks.length > 0
+                ? availableTracks
+                : [
+                    { code: '6_MONTH', label: '6-Month Track' },
+                    { code: '12_MONTH', label: '12-Month Track' },
+                  ]
+              ).map((tr: any) => {
+                const isSelected = (studentMeta?.studyTrack || '12_MONTH') === tr.code;
+                return (
+                  <button
+                    key={tr.code}
+                    type="button"
+                    disabled={switchingTrack}
+                    onClick={() => handleSetTrack(tr.code)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                      isSelected
+                        ? 'bg-emerald-400 text-slate-950 shadow-sm'
+                        : 'text-emerald-100 hover:bg-white/10'
+                    }`}
+                  >
+                    {tr.code === '6_MONTH' ? '6-Month Track' : '12-Month Track'}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -313,6 +403,82 @@ export default function StudentCoursesPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Module Tests (Modules 1-13) Section */}
+            {learningTopics.length > 0 && (
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Module Tests &amp; Mastery Quizzes (Modules 1–13)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Complete each module and take its Module Test to track your readiness for End-of-Semester &amp; Final Exams.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                    {learningTopics.filter((t) => t.mastery?.completed).length} / {learningTopics.length} Completed
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {learningTopics.map((t: any, idx: number) => {
+                    const score = t.mastery?.bestScorePercent ?? t.mastery?.latestScorePercent;
+                    const completed = Boolean(t.mastery?.completed);
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between gap-3"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Module {idx + 1}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                completed
+                                  ? 'bg-emerald-600 text-white'
+                                  : typeof score === 'number'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {typeof score === 'number'
+                                ? `${score}% ${completed ? '· Passed' : '· Retry'}`
+                                : 'Pending'}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 mt-2 line-clamp-2">
+                            {t.title}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                            {t.materialTitle}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/portal/student/topics/${t.id}`}
+                            className="flex-1 text-center py-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold"
+                          >
+                            Study
+                          </Link>
+                          {t.primaryQuizId && (
+                            <Link
+                              href={`/portal/student/topic-quiz/${t.primaryQuizId}`}
+                              className="flex-1 text-center py-1.5 px-2.5 rounded-xl bg-[#073832] hover:bg-emerald-900 text-white text-[11px] font-bold"
+                            >
+                              {typeof score === 'number' ? 'Retake Test' : 'Take Test'}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>

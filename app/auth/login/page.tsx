@@ -30,9 +30,10 @@ export default function LoginPage() {
   const getPortalRouteForRole = (role: string) => {
     if (role === 'STUDENT') return '/portal/student/dashboard';
     if (role === 'LECTURER' || role === 'EXAM_OFFICER') return '/portal/lecturer';
-    if (role === 'CLINIC_SUPER_ADMIN') return '/portal/clinic/admin';
     if (
       [
+        'CLINIC_SUPER_ADMIN',
+        'CLINIC_ADMIN',
         'DOCTOR',
         'NURSE',
         'MIDWIFE',
@@ -42,7 +43,6 @@ export default function LoginPage() {
         'RECEPTIONIST',
         'CASHIER',
         'RECORDS_OFFICER',
-        'CLINIC_ADMIN',
       ].includes(role)
     ) {
       return '/portal/clinic';

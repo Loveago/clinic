@@ -108,7 +108,7 @@ export default function StudentPaymentsPage() {
               Total Invoiced Fees
             </span>
             <div className="text-3xl font-black text-slate-900 mt-1">
-              {formatGHS(summary.totalInvoiced || 3500)}
+              {formatGHS(summary.totalInvoiced ?? 0)}
             </div>
             <div className="text-xs text-slate-500 font-medium mt-2">
               Ghana Cedi (GHS) Tuition & Clinical Dues
@@ -120,7 +120,7 @@ export default function StudentPaymentsPage() {
               Total Paid to Date
             </span>
             <div className="text-3xl font-black text-emerald-700 mt-1">
-              {formatGHS(summary.totalPaid || 2000)}
+              {formatGHS(summary.totalPaid ?? 0)}
             </div>
             <div className="text-xs text-emerald-700 font-medium mt-2 flex items-center gap-1">
               <ShieldCheck className="w-4 h-4" /> Verified via Paystack Ghana
@@ -132,7 +132,7 @@ export default function StudentPaymentsPage() {
               Outstanding Balance
             </span>
             <div className="text-3xl font-black text-rose-600 mt-1">
-              {formatGHS(summary.outstandingBalance || 1500)}
+              {formatGHS(summary.outstandingBalance ?? 0)}
             </div>
             <div className="text-xs text-slate-500 font-medium mt-2">
               Payable via MTN MoMo, Telecel Cash, Card
@@ -187,19 +187,38 @@ export default function StudentPaymentsPage() {
                   </div>
                 </div>
 
-                {inv.balance > 0 && (
-                  <button
-                    onClick={() => {
-                      setPayingInvoice(inv);
-                      setPayAmount(String(inv.balance));
-                    }}
-                    className="w-full mt-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-2 shadow-sm transition"
-                  >
-                    <Smartphone className="w-4 h-4" /> Pay with Paystack Ghana
-                  </button>
+                {inv.discountAmount > 0 && (
+                  <div className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+                    Scholarship / Discount Applied: -{formatGHS(inv.discountAmount)}
+                  </div>
                 )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Link
+                    href={`/portal/student/invoices/${inv.id}`}
+                    className="flex-1 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 transition"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> View / Print Invoice
+                  </Link>
+                  {inv.balance > 0 && inv.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => {
+                        setPayingInvoice(inv);
+                        setPayAmount(String(inv.balance));
+                      }}
+                      className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition"
+                    >
+                      <Smartphone className="w-3.5 h-3.5" /> Pay Now (GH₵)
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
+            {!loading && invoices.length === 0 && (
+              <div className="col-span-2 text-center py-8 text-xs text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                No fee invoices have been issued to your account yet.
+              </div>
+            )}
           </div>
         </div>
 
@@ -238,18 +257,30 @@ export default function StudentPaymentsPage() {
                     <td className="py-4 font-medium text-slate-800">{p.method}</td>
                     <td className="py-4 font-black text-slate-900 text-sm">{formatGHS(p.amount)}</td>
                     <td className="py-4">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                          p.status === 'SUCCESSFUL'
+                            ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                            : p.status === 'PENDING'
+                            ? 'text-amber-800 bg-amber-50 border-amber-200'
+                            : 'text-rose-800 bg-rose-50 border-rose-200'
+                        }`}
+                      >
                         <CheckCircle className="w-3 h-3" /> {p.status}
                       </span>
                     </td>
                     <td className="py-4 text-right">
-                      <Link
-                        href={`/portal/student/receipts/${p.reference}`}
-                        className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold text-xs"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Print Receipt</span>
-                      </Link>
+                      {p.status === 'SUCCESSFUL' ? (
+                        <Link
+                          href={`/portal/student/receipts/${p.reference}`}
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold text-xs"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Print Receipt</span>
+                        </Link>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">{p.status}</span>
+                      )}
                     </td>
                   </tr>
                 ))}

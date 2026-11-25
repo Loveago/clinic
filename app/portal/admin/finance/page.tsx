@@ -56,7 +56,11 @@ export default function AdminFinanceWorkspace() {
   // Offline Payment modal
   const [payInvoice, setPayInvoice] = useState<any>(null);
   const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState('Offline Bank Deposit (GCB / Ecobank Ghana)');
+  const [payMethod, setPayMethod] = useState('Cash at Bursary');
+
+  // Admin Printable Invoice / Receipt preview modals
+  const [previewInvoice, setPreviewInvoice] = useState<any>(null);
+  const [previewPayment, setPreviewPayment] = useState<any>(null);
 
   // Discount modal
   const [showDiscountModal, setShowDiscountModal] = useState(false);
@@ -181,6 +185,27 @@ export default function AdminFinanceWorkspace() {
         await loadAll();
       } else {
         notify(d.error || 'Payment recording failed', 'err');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelInvoice = async (invoiceId: string) => {
+    if (!confirm('Cancel this unpaid invoice?')) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_invoice', invoiceId }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        notify('Invoice cancelled.');
+        await loadAll();
+      } else {
+        notify(d.error || 'Cannot cancel invoice', 'err');
       }
     } finally {
       setBusy(false);
@@ -432,13 +457,27 @@ export default function AdminFinanceWorkspace() {
                         <div className="text-[11px] text-emerald-700">Paid: {fmt(inv.amountPaid)} · Bal: {fmt(inv.balance)}</div>
                       </td>
                       <td className="p-3.5 font-bold">{inv.status}</td>
-                      <td className="p-3.5 text-right space-x-1.5">
+                      <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => setPreviewInvoice(inv)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                        >
+                          View
+                        </button>
                         {inv.balance > 0 && inv.status !== 'CANCELLED' && (
                           <button
                             onClick={() => { setPayInvoice(inv); setPayAmount(String(inv.balance)); }}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold"
                           >
                             Record Payment
+                          </button>
+                        )}
+                        {inv.amountPaid === 0 && !inv.isLocked && inv.status !== 'CANCELLED' && (
+                          <button
+                            onClick={() => handleCancelInvoice(inv.id)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold"
+                          >
+                            Cancel
                           </button>
                         )}
                       </td>
@@ -503,6 +542,7 @@ export default function AdminFinanceWorkspace() {
                   <th className="p-3.5">Method</th>
                   <th className="p-3.5">Amount</th>
                   <th className="p-3.5">Status</th>
+                  <th className="p-3.5 text-right">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -514,6 +554,16 @@ export default function AdminFinanceWorkspace() {
                     <td className="p-3.5">{p.method}</td>
                     <td className="p-3.5 font-mono font-bold">{fmt(p.amount)}</td>
                     <td className="p-3.5 font-bold">{p.status}</td>
+                    <td className="p-3.5 text-right">
+                      {p.status === 'SUCCESSFUL' && (
+                        <button
+                          onClick={() => setPreviewPayment(p)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold"
+                        >
+                          Print Receipt
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -539,10 +589,20 @@ export default function AdminFinanceWorkspace() {
               <select value={structForm.level} onChange={(e) => setStructForm({ ...structForm, level: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2">
                 {['Level 100', 'Level 200', 'Level 300', 'Level 400'].map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
+              <select value={structForm.semester} onChange={(e) => setStructForm({ ...structForm, semester: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2">
+                <option value="First Semester">First Semester</option>
+                <option value="Second Semester">Second Semester</option>
+                <option value="6-Month Intensive">6-Month Intensive</option>
+              </select>
+              <select value={structForm.studentCategory} onChange={(e) => setStructForm({ ...structForm, studentCategory: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2">
+                <option value="ALL">All Students</option>
+                <option value="NEW">New / Freshers</option>
+                <option value="CONTINUING">Continuing</option>
+              </select>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between font-bold">
-                <span>Fee Items (GH₵)</span>
+                <span>Fee Items (GH₵) — Total: {fmt(structForm.items.reduce((s, it) => s + Number(it.amount || 0), 0))}</span>
                 <button
                   type="button"
                   onClick={() => setStructForm({ ...structForm, items: [...structForm.items, { feeCategoryId: categories[0]?.id || '', title: 'Registration Fee', amount: 200 }] })}
@@ -552,7 +612,7 @@ export default function AdminFinanceWorkspace() {
                 </button>
               </div>
               {structForm.items.map((it, idx) => (
-                <div key={idx} className="grid grid-cols-3 gap-2">
+                <div key={idx} className="grid grid-cols-7 gap-2 items-center">
                   <select
                     value={it.feeCategoryId}
                     onChange={(e) => {
@@ -560,7 +620,7 @@ export default function AdminFinanceWorkspace() {
                       next[idx].feeCategoryId = e.target.value;
                       setStructForm({ ...structForm, items: next });
                     }}
-                    className="border border-slate-200 rounded-xl px-2 py-2"
+                    className="col-span-2 border border-slate-200 rounded-xl px-2 py-2"
                   >
                     {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -571,18 +631,30 @@ export default function AdminFinanceWorkspace() {
                       next[idx].title = e.target.value;
                       setStructForm({ ...structForm, items: next });
                     }}
-                    className="border border-slate-200 rounded-xl px-2 py-2"
+                    className="col-span-2 border border-slate-200 rounded-xl px-2 py-2"
                   />
                   <input
                     type="number"
+                    min="0"
+                    step="0.01"
                     value={it.amount}
                     onChange={(e) => {
                       const next = [...structForm.items];
                       next[idx].amount = Number(e.target.value);
                       setStructForm({ ...structForm, items: next });
                     }}
-                    className="border border-slate-200 rounded-xl px-2 py-2"
+                    className="col-span-2 border border-slate-200 rounded-xl px-2 py-2 font-mono"
                   />
+                  {structForm.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setStructForm({ ...structForm, items: structForm.items.filter((_, i) => i !== idx) })}
+                      className="text-rose-600 hover:text-rose-800 font-bold text-center"
+                      title="Remove item"
+                    >
+                      <X className="w-4 h-4 mx-auto" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -606,10 +678,16 @@ export default function AdminFinanceWorkspace() {
               <option value="student">Single Student</option>
             </select>
             {invForm.mode === 'programme' ? (
-              <select required value={invForm.programmeId} onChange={(e) => setInvForm({ ...invForm, programmeId: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2">
-                <option value="">Select Programme</option>
-                {programmes.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select required value={invForm.programmeId} onChange={(e) => setInvForm({ ...invForm, programmeId: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2">
+                  <option value="">Select Programme</option>
+                  {programmes.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select value={invForm.level} onChange={(e) => setInvForm({ ...invForm, level: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2">
+                  <option value="">All Levels</option>
+                  {['Level 100', 'Level 200', 'Level 300', 'Level 400'].map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
             ) : (
               <select required value={invForm.studentId} onChange={(e) => setInvForm({ ...invForm, studentId: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2">
                 <option value="">Select Student</option>
@@ -643,12 +721,131 @@ export default function AdminFinanceWorkspace() {
               <button type="button" onClick={() => setPayInvoice(null)}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
             <p className="text-slate-500">Outstanding Balance: <strong>{fmt(payInvoice.balance)}</strong> (Partial payments supported)</p>
-            <input type="number" step="0.01" required value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono" />
-            <input required value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2" />
+            <div>
+              <label className="font-bold text-slate-600 block mb-1">Amount Paid (GH₵)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={payInvoice.balance}
+                required
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-600 block mb-1">Payment Channel</label>
+              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2">
+                <option value="Cash at Bursary">Cash at Bursary</option>
+                <option value="MTN Mobile Money (Merchant)">MTN Mobile Money (Merchant)</option>
+                <option value="Telecel Cash">Telecel Cash</option>
+                <option value="AT Money">AT Money</option>
+                <option value="Offline Bank Deposit (GCB / Ecobank Ghana)">Offline Bank Deposit (GCB / Ecobank Ghana)</option>
+                <option value="Bank Cheque / Draft">Bank Cheque / Draft</option>
+              </select>
+            </div>
             <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl bg-[#073832] text-white font-bold">
               Confirm &amp; Issue Receipt
             </button>
           </form>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN PRINTABLE INVOICE PREVIEW */}
+      {previewInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:bg-white print:p-0">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-5 text-xs shadow-2xl print:shadow-none">
+            <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+              <div>
+                <h3 className="text-base font-black text-[#073832]">Action Health Nursing &amp; Midwifery Training College</h3>
+                <p className="text-slate-500">Accra, Ghana · Official Student Fee Invoice</p>
+              </div>
+              <div className="flex items-center gap-2 print:hidden">
+                <button type="button" onClick={() => window.print()} className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold">
+                  Print
+                </button>
+                <button type="button" onClick={() => setPreviewInvoice(null)} className="p-1 text-slate-400 hover:text-slate-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div>
+                <div className="text-[10px] font-bold uppercase text-slate-400">Student</div>
+                <div className="font-bold text-slate-900">{previewInvoice.student?.user?.name}</div>
+                <div className="font-mono text-slate-600">{previewInvoice.student?.studentId}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-bold uppercase text-slate-400">Invoice</div>
+                <div className="font-mono font-bold text-emerald-800">{previewInvoice.invoiceNumber}</div>
+                <div className="text-slate-600">{previewInvoice.academicYear} · {previewInvoice.semester}</div>
+              </div>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                  <th className="py-2">Description</th>
+                  <th className="py-2 text-right">Amount (GHS)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {previewInvoice.items?.length > 0 ? (
+                  previewInvoice.items.map((it: any) => (
+                    <tr key={it.id}>
+                      <td className="py-2.5 font-medium">{it.title}</td>
+                      <td className="py-2.5 text-right font-mono">{fmt(it.amount)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-2.5 font-medium">{previewInvoice.title}</td>
+                    <td className="py-2.5 text-right font-mono">{fmt(previewInvoice.amount)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <div className="border-t border-slate-200 pt-3 space-y-1 max-w-xs ml-auto">
+              <div className="flex justify-between"><span>Total:</span><strong className="font-mono">{fmt(previewInvoice.amount)}</strong></div>
+              {previewInvoice.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700"><span>Discounts:</span><strong className="font-mono">-{fmt(previewInvoice.discountAmount)}</strong></div>
+              )}
+              <div className="flex justify-between text-emerald-700"><span>Paid:</span><strong className="font-mono">{fmt(previewInvoice.amountPaid)}</strong></div>
+              <div className="flex justify-between text-sm font-black border-t border-slate-200 pt-1.5"><span>Balance Due:</span><span className="font-mono">{fmt(previewInvoice.balance)}</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN PRINTABLE RECEIPT PREVIEW */}
+      {previewPayment && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:bg-white print:p-0">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-4 text-xs shadow-2xl print:shadow-none">
+            <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+              <div>
+                <h3 className="text-base font-black text-[#073832]">Official Payment Receipt</h3>
+                <p className="text-slate-500">Action Health Nursing &amp; Midwifery Training College · Ghana</p>
+              </div>
+              <div className="flex items-center gap-2 print:hidden">
+                <button type="button" onClick={() => window.print()} className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold">
+                  Print
+                </button>
+                <button type="button" onClick={() => setPreviewPayment(null)} className="p-1 text-slate-400 hover:text-slate-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div><span className="text-slate-400 block">Receipt No</span><strong className="font-mono">{previewPayment.receiptNumber}</strong></div>
+              <div><span className="text-slate-400 block">Reference</span><strong className="font-mono">{previewPayment.reference}</strong></div>
+              <div><span className="text-slate-400 block">Student</span><strong>{previewPayment.student?.user?.name || 'Applicant'}</strong></div>
+              <div><span className="text-slate-400 block">Channel</span><strong>{previewPayment.method}</strong></div>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span className="font-bold text-emerald-900">Amount Confirmed (GHS)</span>
+              <span className="text-lg font-black font-mono text-emerald-800">{fmt(previewPayment.amount)}</span>
+            </div>
+          </div>
         </div>
       )}
 

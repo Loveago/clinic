@@ -59,7 +59,7 @@ export default function StudentDashboardPage() {
                 Enrolled Courses
               </div>
               <div className="text-3xl font-extrabold text-slate-900 mt-0.5">
-                {data?.stats?.enrolledCourses || 3}
+                {loading ? '—' : (data?.stats?.enrolledCoursesCount ?? data?.enrollments?.length ?? 0)}
               </div>
             </div>
           </div>
@@ -74,7 +74,9 @@ export default function StudentDashboardPage() {
                 Completed Topics
               </div>
               <div className="text-3xl font-extrabold text-slate-900 mt-0.5">
-                {data?.stats?.completedTopics || '8 / 15'}
+                {loading
+                  ? '—'
+                  : `${learning?.stats?.topicsCompleted ?? data?.stats?.completedTopics ?? 0} / ${learning?.stats?.totalTopics ?? data?.stats?.totalTopics ?? 0}`}
               </div>
             </div>
           </div>
@@ -86,10 +88,14 @@ export default function StudentDashboardPage() {
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Latest Result
+                Latest Result / CGPA
               </div>
               <div className="text-3xl font-extrabold text-slate-900 mt-0.5">
-                {data?.stats?.latestResult || '92%'}
+                {loading
+                  ? '—'
+                  : data?.stats?.latestScorePercent != null
+                  ? `${data.stats.latestScorePercent}%`
+                  : `${Number(data?.student?.cgpa || 0).toFixed(2)}`}
               </div>
             </div>
           </div>
@@ -110,107 +116,85 @@ export default function StudentDashboardPage() {
               </Link>
             </div>
 
-            {/* Course Card from mockup */}
+            {/* Dynamic Enrolled Courses */}
             <div className="space-y-4">
-              <div className="border border-slate-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-md transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                  <div className="relative w-full sm:w-28 h-24 sm:h-20 rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                    <Image
-                      src="https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=80"
-                      alt="Basic Nursing Certificate"
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          BNC101
-                        </span>
-                        <h3 className="text-base font-bold text-slate-900 mt-1">
-                          Basic Nursing Certificate
-                        </h3>
-                      </div>
-                      <span className="text-xs font-extrabold text-blue-600">60%</span>
-                    </div>
-
-                    {/* Progress Bar (matching mockup) */}
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                        style={{ width: '60%' }}
-                      />
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        Instructor: Dr. Kemi Adebayo
-                      </span>
-                      <Link
-                        href="/portal/student/courses/bnc101"
-                        className="text-xs font-bold text-slate-800 hover:text-emerald-800 flex items-center gap-1 group"
-                      >
-                        <span>Continue Learning</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </Link>
-                    </div>
-                  </div>
+              {loading ? (
+                <div className="py-10 text-center text-xs text-slate-500">Loading your enrolled courses...</div>
+              ) : (data?.enrollments || []).length === 0 ? (
+                <div className="border border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                  <BookOpen className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-sm font-bold text-slate-700">No courses registered for this semester yet.</p>
+                  <Link
+                    href="/portal/student/courses"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#073832] text-white text-xs font-bold rounded-xl hover:bg-emerald-900 transition"
+                  >
+                    <span>Go to Course Registration</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
-              </div>
-
-              {/* Course 2 */}
-              <div className="border border-slate-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-md transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                  <div className="relative w-full sm:w-28 h-24 sm:h-20 rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                    <Image
-                      src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=80"
-                      alt="Anatomy & Physiology"
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          ANA102
-                        </span>
-                        <h3 className="text-base font-bold text-slate-900 mt-1">
-                          Anatomy &amp; Physiology for Nurses
-                        </h3>
+              ) : (
+                (data?.enrollments || []).slice(0, 4).map((course: any, idx: number) => (
+                  <div
+                    key={course.id || course.courseId}
+                    className="border border-slate-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                      <div className="relative w-full sm:w-28 h-24 sm:h-20 rounded-xl overflow-hidden shrink-0 border border-slate-200">
+                        <Image
+                          src={
+                            idx % 2 === 0
+                              ? 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=80'
+                              : 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=80'
+                          }
+                          alt={course.title}
+                          fill
+                          className="object-cover"
+                        />
                       </div>
-                      <span className="text-xs font-extrabold text-emerald-600">50%</span>
-                    </div>
 
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-emerald-600 h-full rounded-full transition-all duration-500"
-                        style={{ width: '50%' }}
-                      />
-                    </div>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              {course.code}
+                            </span>
+                            <h3 className="text-base font-bold text-slate-900 mt-1">
+                              {course.title}
+                            </h3>
+                          </div>
+                          <span className="text-xs font-extrabold text-emerald-700">
+                            {Math.round(course.progress || 0)}%
+                          </span>
+                        </div>
 
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        4 Credit Hours · Semester 1
-                      </span>
-                      <Link
-                        href="/portal/student/courses/ana102"
-                        className="text-xs font-bold text-slate-800 hover:text-emerald-800 flex items-center gap-1 group"
-                      >
-                        <span>Open Modules</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                      </Link>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-emerald-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round(course.progress || 0))}%` }}
+                          />
+                        </div>
+
+                        <div className="pt-2 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {course.lecturer || 'Faculty Lecturer'} · {course.creditHours} Credit Hours
+                          </span>
+                          <Link
+                            href={`/portal/student/courses/${course.courseId}`}
+                            className="text-xs font-bold text-slate-800 hover:text-emerald-800 flex items-center gap-1 group"
+                          >
+                            <span>Open Course</span>
+                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                          </Link>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                ))
+              )}
             </div>
           </div>
 
-          {/* Right Column: Upcoming Exams & Quick Actions (matching mockup) */}
+          {/* Right Column: Upcoming Exams & Quick Actions */}
           <div className="lg:col-span-5 space-y-6">
             {/* Upcoming Exams Card */}
             <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-5">
@@ -225,55 +209,80 @@ export default function StudentDashboardPage() {
                 </Link>
               </div>
 
-              {/* Anatomy & Physiology Exam Card - strictly matching mockup */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 space-y-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                    <Calendar className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      Anatomy &amp; Physiology
-                    </h3>
-                    <div className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Tue, Apr 29, 2025 · 10:00 AM</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 pt-1">
+              {(data?.upcomingExams || []).length === 0 ? (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-center space-y-2">
+                  <Calendar className="w-6 h-6 text-slate-400 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-600">No upcoming published examinations.</p>
                   <Link
                     href="/portal/student/exams"
-                    className="flex-1 text-center py-2.5 px-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-bold rounded-xl shadow-sm transition-all"
+                    className="inline-block text-xs font-bold text-emerald-800 hover:underline"
                   >
-                    View Details
-                  </Link>
-                  <Link
-                    href="/portal/student/exams/start"
-                    className="flex-1 text-center py-2.5 px-4 bg-[#073832] hover:bg-emerald-900 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-                  >
-                    Take Exam
+                    Check Examination Portal →
                   </Link>
                 </div>
-              </div>
+              ) : (
+                (data?.upcomingExams || []).slice(0, 2).map((exam: any) => (
+                  <div key={exam.id} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          {exam.courseCode}
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900 leading-snug mt-1">
+                          {exam.title}
+                        </h3>
+                        <div className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {exam.date} · {exam.time} ({exam.durationMinutes} mins)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-              {/* Latest Examination Result Link Card */}
+                    <div className="flex items-center gap-3 pt-1">
+                      <Link
+                        href="/portal/student/exams"
+                        className="flex-1 text-center py-2.5 px-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-bold rounded-xl shadow-sm transition-all"
+                      >
+                        View Details
+                      </Link>
+                      <Link
+                        href={`/portal/student/exams/start?id=${exam.id}`}
+                        className="flex-1 text-center py-2.5 px-4 bg-[#073832] hover:bg-emerald-900 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                      >
+                        Take Exam
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {/* Tuition & Fee Status Card */}
               <div className="border border-emerald-100 bg-emerald-50/60 rounded-2xl p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                    <Award className="w-4 h-4" />
+                    <GraduationCap className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-900">Recent Exam Passed</div>
-                    <div className="text-[11px] text-emerald-800 font-semibold">Scored 92% (23/25 Correct)</div>
+                    <div className="text-xs font-bold text-slate-900">
+                      {data?.stats?.outstandingBalance > 0 ? 'Tuition Balance Due' : 'Fee Account Cleared'}
+                    </div>
+                    <div className="text-[11px] text-emerald-800 font-semibold">
+                      {data?.stats?.outstandingBalance > 0
+                        ? `Outstanding: GH₵ ${Number(data.stats.outstandingBalance).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`
+                        : `Paid: GH₵ ${Number(data?.stats?.totalPaid || 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`}
+                    </div>
                   </div>
                 </div>
                 <Link
-                  href="/portal/student/results"
+                  href="/portal/student/payments"
                   className="px-3 py-1.5 bg-[#073832] text-white text-xs font-bold rounded-lg shadow-sm hover:bg-emerald-900 transition-colors"
                 >
-                  View Result
+                  {data?.stats?.outstandingBalance > 0 ? 'Pay Fees' : 'View Ledger'}
                 </Link>
               </div>
             </div>
@@ -309,6 +318,56 @@ export default function StudentDashboardPage() {
                     <div className="text-[10px] text-slate-500 font-semibold">Quiz Average</div>
                   </div>
                 </div>
+
+                {Array.isArray(learning.topics) && learning.topics.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      Module Tests (Modules 1–13)
+                    </div>
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                      {learning.topics.map((t: any, idx: number) => {
+                        const score = t.mastery?.bestScorePercent ?? t.mastery?.latestScorePercent;
+                        const passed = t.mastery?.completed || (typeof score === 'number' && score >= 50);
+                        return (
+                          <div
+                            key={t.id}
+                            className="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 truncate">
+                                {idx + 1}. {t.title}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                {typeof score === 'number'
+                                  ? `Score: ${score}% ${passed ? '· Passed' : '· Needs Review'}`
+                                  : 'Not attempted yet'}
+                              </div>
+                            </div>
+                            {t.primaryQuizId ? (
+                              <Link
+                                href={`/portal/student/topic-quiz/${t.primaryQuizId}`}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                                  passed
+                                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                    : 'bg-[#073832] text-white hover:bg-emerald-900'
+                                }`}
+                              >
+                                {typeof score === 'number' ? 'Retake Test' : 'Module Test'}
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/portal/student/topics/${t.id}`}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 shrink-0"
+                              >
+                                Open Module
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

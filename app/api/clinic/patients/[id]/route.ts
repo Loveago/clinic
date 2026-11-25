@@ -44,6 +44,22 @@ export async function GET(
           include: { test: true, result: true },
           orderBy: { createdAt: 'desc' },
         },
+        imagingRequests: {
+          include: { imaging: true, result: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        procedureRecords: {
+          include: { procedure: true },
+          orderBy: { procedureDate: 'desc' },
+        },
+        triageRecords: {
+          orderBy: { triagedAt: 'desc' },
+        },
+        insurances: {
+          include: { provider: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        identifiers: true,
         invoices: {
           include: { items: true, refunds: true },
           orderBy: { createdAt: 'desc' },

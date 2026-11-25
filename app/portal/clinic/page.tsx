@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import PatientEmrWorkspace from '@/components/PatientEmrWorkspace';
 import ClinicTriageAndDiagnostics from '@/components/ClinicTriageAndDiagnostics';
+import ClinicBillingWorkspace from '@/components/ClinicBillingWorkspace';
 
 type ClinicTab =
   | 'dashboard'
@@ -83,18 +84,38 @@ export default function ClinicManagementConsole() {
   // Modals & Forms
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [patientForm, setPatientForm] = useState({
+    id: '',
     fullName: '',
     phone: '+233',
     email: '',
     dateOfBirth: '',
     gender: 'Female',
+    maritalStatus: '',
+    occupation: '',
+    ghanaCardNumber: '',
     address: '',
+    townCity: '',
+    region: '',
     bloodGroup: '',
+    genotype: '',
+    heightCm: '',
+    weightKg: '',
     allergies: '',
+    chronicConditions: '',
+    insuranceProviderCode: '',
+    insuranceNumber: '',
+    nextOfKinName: '',
+    nextOfKinPhone: '',
+    nextOfKinRelation: '',
     emergencyName: '',
     emergencyPhone: '+233',
     emergencyRelation: '',
   });
+  const [labSearch, setLabSearch] = useState('');
+  const [labStatusFilter, setLabStatusFilter] = useState('ALL');
+  const [printLabReport, setPrintLabReport] = useState<any>(null);
+  const [selectedConsultId, setSelectedConsultId] = useState<string | null>(null);
+  const [consultPatientDetail, setConsultPatientDetail] = useState<any>(null);
 
   const [showApptModal, setShowApptModal] = useState(false);
   const [apptForm, setApptForm] = useState({
@@ -291,22 +312,107 @@ export default function ClinicManagementConsole() {
     if (res.ok) setSelectedPatient(data.patient);
   };
 
+  const loadConsultPatientDetail = async (patientId: string) => {
+    if (!patientId) return;
+    const res = await fetch(`/api/clinic/patients/${patientId}`);
+    const data = await res.json();
+    if (res.ok) setConsultPatientDetail(data.patient);
+  };
+
+  const resetPatientForm = () => {
+    setPatientForm({
+      id: '',
+      fullName: '',
+      phone: '+233',
+      email: '',
+      dateOfBirth: '',
+      gender: 'Female',
+      maritalStatus: '',
+      occupation: '',
+      ghanaCardNumber: '',
+      address: '',
+      townCity: '',
+      region: '',
+      bloodGroup: '',
+      genotype: '',
+      heightCm: '',
+      weightKg: '',
+      allergies: '',
+      chronicConditions: '',
+      insuranceProviderCode: '',
+      insuranceNumber: '',
+      nextOfKinName: '',
+      nextOfKinPhone: '',
+      nextOfKinRelation: '',
+      emergencyName: '',
+      emergencyPhone: '+233',
+      emergencyRelation: '',
+    });
+  };
+
+  const openEditPatientModal = (p: any) => {
+    const geno = p.identifiers?.find((i: any) => i.identifierType === 'GENOTYPE')?.identifierValue || '';
+    const latestTriage = p.triageRecords?.[0];
+    const primaryIns = p.insurances?.[0];
+    setPatientForm({
+      id: p.id || '',
+      fullName: p.fullName || '',
+      phone: p.phone || '+233',
+      email: p.email || '',
+      dateOfBirth: p.dateOfBirth || '',
+      gender: p.gender || 'Female',
+      maritalStatus: p.maritalStatus || '',
+      occupation: p.occupation || '',
+      ghanaCardNumber: p.ghanaCardNumber || '',
+      address: p.address || '',
+      townCity: p.townCity || '',
+      region: p.region || '',
+      bloodGroup: p.bloodGroup || '',
+      genotype: geno,
+      heightCm: latestTriage?.heightCm ? String(latestTriage.heightCm) : '',
+      weightKg: latestTriage?.weightKg ? String(latestTriage.weightKg) : '',
+      allergies: p.allergies || '',
+      chronicConditions: p.chronicConditions || '',
+      insuranceProviderCode: primaryIns?.provider?.code || '',
+      insuranceNumber: primaryIns?.membershipNumber || '',
+      nextOfKinName: p.nextOfKinName || '',
+      nextOfKinPhone: p.nextOfKinPhone || '',
+      nextOfKinRelation: p.nextOfKinRelation || '',
+      emergencyName: p.emergencyName || '',
+      emergencyPhone: p.emergencyPhone || '+233',
+      emergencyRelation: p.emergencyRelation || '',
+    });
+    setShowPatientModal(true);
+  };
+
+  const calcPatientFormBmi = () => {
+    const w = Number(patientForm.weightKg);
+    const h = Number(patientForm.heightCm) / 100;
+    if (!w || !h) return '—';
+    return (w / (h * h)).toFixed(1);
+  };
+
   const handleRegisterPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
+      const isEdit = Boolean(patientForm.id);
       const res = await fetch('/api/clinic/patients', {
-        method: 'POST',
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patientForm),
       });
       const data = await res.json();
       if (!res.ok) {
-        notify(data.error || 'Registration failed', 'err');
+        notify(data.error || 'Save patient failed', 'err');
       } else {
-        notify(`Registered patient ${data.patient.patientNumber}`);
+        notify(isEdit ? `Updated patient ${data.patient.patientNumber}` : `Registered patient ${data.patient.patientNumber}`);
         setShowPatientModal(false);
+        resetPatientForm();
         await loadAll();
+        if (isEdit && selectedPatient?.id === data.patient.id) {
+          await loadPatientDetail(data.patient.id);
+        }
       }
     } finally {
       setBusy(false);
@@ -1022,7 +1128,10 @@ export default function ClinicManagementConsole() {
                   />
                 </div>
                 <button
-                  onClick={() => setShowPatientModal(true)}
+                  onClick={() => {
+                    resetPatientForm();
+                    setShowPatientModal(true);
+                  }}
                   className="px-4 py-2 rounded-xl bg-[#073832] text-white text-xs font-bold inline-flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
@@ -1083,11 +1192,43 @@ export default function ClinicManagementConsole() {
                   ) : (
                     <>
                       <div className="border-b border-slate-100 pb-3">
-                        <div className="text-sm font-extrabold text-[#073832]">{selectedPatient.fullName}</div>
-                        <div className="text-slate-500">{selectedPatient.patientNumber} · {selectedPatient.phone}</div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-extrabold text-[#073832]">{selectedPatient.fullName}</div>
+                            <div className="text-slate-500">
+                              {selectedPatient.patientNumber} · {selectedPatient.phone} · {selectedPatient.gender}
+                              {selectedPatient.dateOfBirth ? ` · DOB: ${selectedPatient.dateOfBirth}` : ''}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => openEditPatientModal(selectedPatient)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px]"
+                          >
+                            Edit Profile
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1.5 mt-3 text-[11px] bg-slate-50 p-2.5 rounded-xl">
+                          <div><span className="text-slate-400">Blood Group:</span> <strong className="text-slate-800">{selectedPatient.bloodGroup || '—'}</strong></div>
+                          <div><span className="text-slate-400">Genotype:</span> <strong className="text-slate-800">{selectedPatient.identifiers?.find((i: any) => i.identifierType === 'GENOTYPE')?.identifierValue || '—'}</strong></div>
+                          <div><span className="text-slate-400">Height / Weight:</span> <strong className="text-slate-800">{selectedPatient.triageRecords?.[0]?.heightCm ? `${selectedPatient.triageRecords[0].heightCm} cm` : '—'} / {selectedPatient.triageRecords?.[0]?.weightKg ? `${selectedPatient.triageRecords[0].weightKg} kg` : '—'}</strong></div>
+                          <div><span className="text-slate-400">BMI:</span> <strong className="text-slate-800">{selectedPatient.triageRecords?.[0]?.bmi || '—'}</strong></div>
+                          <div><span className="text-slate-400">Ghana Card:</span> <strong className="text-slate-800">{selectedPatient.ghanaCardNumber || '—'}</strong></div>
+                          <div><span className="text-slate-400">Insurance:</span> <strong className="text-slate-800">{selectedPatient.insurances?.[0] ? `${selectedPatient.insurances[0].provider?.code} (${selectedPatient.insurances[0].membershipNumber})` : 'Self-Pay'}</strong></div>
+                          <div><span className="text-slate-400">Marital Status:</span> <strong className="text-slate-800">{selectedPatient.maritalStatus || '—'}</strong></div>
+                          <div><span className="text-slate-400">Occupation:</span> <strong className="text-slate-800">{selectedPatient.occupation || '—'}</strong></div>
+                          <div className="col-span-2"><span className="text-slate-400">Next of Kin:</span> <strong className="text-slate-800">{selectedPatient.nextOfKinName || '—'} {selectedPatient.nextOfKinRelation ? `(${selectedPatient.nextOfKinRelation})` : ''} {selectedPatient.nextOfKinPhone || ''}</strong></div>
+                          <div className="col-span-2"><span className="text-slate-400">Emergency:</span> <strong className="text-slate-800">{selectedPatient.emergencyName || '—'} {selectedPatient.emergencyRelation ? `(${selectedPatient.emergencyRelation})` : ''} {selectedPatient.emergencyPhone || ''}</strong></div>
+                        </div>
+
                         {selectedPatient.allergies && (
                           <div className="mt-2 px-2.5 py-1 rounded-lg bg-red-50 text-red-700 font-bold text-[11px]">
                             Allergies: {selectedPatient.allergies}
+                          </div>
+                        )}
+                        {selectedPatient.chronicConditions && (
+                          <div className="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold text-[11px]">
+                            Chronic Conditions: {selectedPatient.chronicConditions}
                           </div>
                         )}
                       </div>
@@ -1250,15 +1391,17 @@ export default function ClinicManagementConsole() {
           {/* TAB 5: CONSULTATIONS */}
           {tab === 'consultations' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="text-xs font-bold text-slate-600">{consultations.length} consultation records</div>
+              <div className="flex flex-wrap justify-between items-center gap-2">
+                <div className="text-xs font-bold text-slate-600">
+                  {consultations.length} consultation records · Select a consultation or queue patient to view full clinical chart, labs &amp; imaging
+                </div>
                 <button
                   onClick={() => {
                     setConsultForm({
                       ...consultForm,
                       id: '',
                       queueId: '',
-                      patientId: patients[0]?.id || '',
+                      patientId: consultPatientDetail?.id || patients[0]?.id || '',
                       chiefComplaint: '',
                       completeNow: false,
                     });
@@ -1270,79 +1413,361 @@ export default function ClinicManagementConsole() {
                   <span>New Consultation</span>
                 </button>
               </div>
-              <div className="space-y-3">
-                {consultations.map((c) => (
-                  <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <span className="font-extrabold text-[#073832]">{c.consultationNumber}</span> ·{' '}
-                        <span className="font-bold text-slate-900">{c.patient?.fullName}</span> ({c.patient?.patientNumber})
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {c.status}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setRxForm({ ...rxForm, consultationId: c.id, patientId: c.patientId });
-                            setShowRxModal(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-bold"
-                        >
-                          + Prescribe
-                        </button>
-                        <button
-                          onClick={() => {
-                            setLabReqForm({ ...labReqForm, consultationId: c.id, patientId: c.patientId });
-                            setShowLabReqModal(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 font-bold"
-                        >
-                          + Lab Test
-                        </button>
-                        <button
-                          onClick={() => {
-                            setConsultForm({
-                              ...consultForm,
-                              id: c.id,
-                              queueId: c.queueId || '',
-                              patientId: c.patientId,
-                              chiefComplaint: c.chiefComplaint,
-                              hpi: c.hpi || '',
-                              examFindings: c.examFindings || '',
-                              treatmentPlan: c.treatmentPlan || '',
-                              internalNotes: c.internalNotes || '',
-                              bpSystolic: String(c.vitals?.bpSystolic || '120'),
-                              bpDiastolic: String(c.vitals?.bpDiastolic || '80'),
-                              temperatureC: String(c.vitals?.temperatureC || '36.8'),
-                              pulseBpm: String(c.vitals?.pulseBpm || '76'),
-                              spo2Percent: String(c.vitals?.spo2Percent || '98'),
-                              weightKg: String(c.vitals?.weightKg || '68'),
-                              heightCm: String(c.vitals?.heightCm || '168'),
-                              diagnosisTitle: '',
-                              diagnosisCode: '',
-                              completeNow: false,
-                              amendReason: '',
-                            });
-                            setShowConsultModal(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold"
-                        >
-                          {c.status === 'COMPLETED' ? 'Amend' : 'Edit / Complete'}
-                        </button>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left: Active Queue + Consultations List */}
+                <div className="lg:col-span-5 space-y-3">
+                  {queue.filter((q) => q.status !== 'COMPLETED' && q.status !== 'CANCELLED').length > 0 && (
+                    <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3 space-y-2 text-xs">
+                      <div className="text-[10px] font-extrabold uppercase text-emerald-800">Active Queue Patients</div>
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                        {queue
+                          .filter((q) => q.status !== 'COMPLETED' && q.status !== 'CANCELLED')
+                          .map((q) => (
+                            <div
+                              key={q.id}
+                              onClick={() => {
+                                setSelectedConsultId(null);
+                                loadConsultPatientDetail(q.patientId);
+                              }}
+                              className={`p-2.5 rounded-xl bg-white border cursor-pointer flex items-center justify-between gap-2 hover:border-[#073832] ${
+                                consultPatientDetail?.id === q.patientId && !selectedConsultId ? 'border-[#073832] ring-1 ring-[#073832]' : 'border-emerald-100'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-bold text-slate-900">{q.queueNumber} · {q.patient?.fullName}</div>
+                                <div className="text-[10px] text-slate-500">{q.patient?.patientNumber} · {q.status}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  loadConsultPatientDetail(q.patientId);
+                                  setConsultForm({
+                                    ...consultForm,
+                                    id: '',
+                                    queueId: q.id,
+                                    patientId: q.patientId,
+                                    chiefComplaint: '',
+                                    completeNow: false,
+                                  });
+                                  setShowConsultModal(true);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-[#073832] text-white text-[10px] font-bold"
+                              >
+                                Start
+                              </button>
+                            </div>
+                          ))}
                       </div>
                     </div>
-                    <div className="text-slate-600">
-                      <strong>Complaint:</strong> {c.chiefComplaint} ·{' '}
-                      <strong>Vitals:</strong> BP {c.vitals?.bpSystolic || '—'}/{c.vitals?.bpDiastolic || '—'}, Temp {c.vitals?.temperatureC || '—'}°C, BMI {c.vitals?.bmi || '—'}
-                    </div>
-                    {c.diagnoses?.length > 0 && (
-                      <div className="text-slate-700">
-                        <strong>Diagnoses:</strong> {c.diagnoses.map((d: any) => `${d.title}${d.code ? ` (${d.code})` : ''}`).join(', ')}
-                      </div>
-                    )}
+                  )}
+
+                  <div className="space-y-2.5 max-h-[680px] overflow-y-auto pr-1">
+                    {consultations.map((c) => {
+                      const isSelected = selectedConsultId === c.id;
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedConsultId(c.id);
+                            loadConsultPatientDetail(c.patientId);
+                          }}
+                          className={`bg-white rounded-2xl border p-3.5 shadow-sm text-xs space-y-1.5 cursor-pointer transition ${
+                            isSelected ? 'border-[#073832] ring-2 ring-[#073832]/15' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-extrabold text-[#073832]">{c.consultationNumber}</span> ·{' '}
+                              <span className="font-bold text-slate-900">{c.patient?.fullName}</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {c.status}
+                            </span>
+                          </div>
+                          <div className="text-slate-600 line-clamp-1">
+                            <strong>Complaint:</strong> {c.chiefComplaint}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            BP {c.vitals?.bpSystolic || '—'}/{c.vitals?.bpDiastolic || '—'} · Temp {c.vitals?.temperatureC || '—'}°C · BMI {c.vitals?.bmi || '—'}
+                          </div>
+                          {c.diagnoses?.length > 0 && (
+                            <div className="text-[11px] text-emerald-800 font-semibold">
+                              Dx: {c.diagnoses.map((d: any) => d.title).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+
+                {/* Right: Doctor Clinical Chart & Results Workspace */}
+                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm text-xs space-y-4">
+                  {!consultPatientDetail ? (
+                    <div className="p-12 text-center text-slate-400">
+                      Select a consultation or active queue patient on the left to inspect full demographics, allergies, vitals, medical history, lab results, and imaging results.
+                    </div>
+                  ) : (
+                    (() => {
+                      const activeConsult = consultations.find((c) => c.id === selectedConsultId) || consultPatientDetail.consultations?.[0] || null;
+                      const latestTriage = consultPatientDetail.triageRecords?.[0];
+                      const latestVitals = activeConsult?.vitals || latestTriage;
+                      const geno = consultPatientDetail.identifiers?.find((i: any) => i.identifierType === 'GENOTYPE')?.identifierValue;
+                      const primaryIns = consultPatientDetail.insurances?.[0];
+                      return (
+                        <>
+                          {/* Patient Header + Quick Actions */}
+                          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div>
+                              <div className="text-base font-extrabold text-[#073832]">{consultPatientDetail.fullName}</div>
+                              <div className="text-slate-500 mt-0.5">
+                                {consultPatientDetail.patientNumber} · {consultPatientDetail.gender}
+                                {consultPatientDetail.dateOfBirth ? ` · DOB: ${consultPatientDetail.dateOfBirth}` : ''} · {consultPatientDetail.phone}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {consultPatientDetail.maritalStatus || 'Marital: —'} · {consultPatientDetail.occupation || 'Occupation: —'} · Ghana Card: {consultPatientDetail.ghanaCardNumber || '—'} · Insurance: {primaryIns ? `${primaryIns.provider?.code} (${primaryIns.membershipNumber})` : 'Self-Pay'}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setLabReqForm({
+                                    patientId: consultPatientDetail.id,
+                                    consultationId: activeConsult?.id || '',
+                                    testId: lab?.catalog?.[0]?.id || '',
+                                    priority: 'ROUTINE',
+                                    clinicalNotes: '',
+                                  });
+                                  setShowLabReqModal(true);
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold"
+                              >
+                                + Order Lab
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setRxForm({
+                                    ...rxForm,
+                                    consultationId: activeConsult?.id || '',
+                                    patientId: consultPatientDetail.id,
+                                  });
+                                  setShowRxModal(true);
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold"
+                              >
+                                + Prescribe
+                              </button>
+                              {activeConsult ? (
+                                <button
+                                  onClick={() => {
+                                    setConsultForm({
+                                      ...consultForm,
+                                      id: activeConsult.id,
+                                      queueId: activeConsult.queueId || '',
+                                      patientId: activeConsult.patientId,
+                                      chiefComplaint: activeConsult.chiefComplaint,
+                                      hpi: activeConsult.hpi || '',
+                                      examFindings: activeConsult.examFindings || '',
+                                      treatmentPlan: activeConsult.treatmentPlan || '',
+                                      internalNotes: activeConsult.internalNotes || '',
+                                      bpSystolic: String(activeConsult.vitals?.bpSystolic || latestTriage?.bpSystolic || '120'),
+                                      bpDiastolic: String(activeConsult.vitals?.bpDiastolic || latestTriage?.bpDiastolic || '80'),
+                                      temperatureC: String(activeConsult.vitals?.temperatureC || latestTriage?.temperatureC || '36.8'),
+                                      pulseBpm: String(activeConsult.vitals?.pulseBpm || latestTriage?.pulseBpm || '76'),
+                                      spo2Percent: String(activeConsult.vitals?.spo2Percent || latestTriage?.spo2Percent || '98'),
+                                      weightKg: String(activeConsult.vitals?.weightKg || latestTriage?.weightKg || '68'),
+                                      heightCm: String(activeConsult.vitals?.heightCm || latestTriage?.heightCm || '168'),
+                                      diagnosisTitle: '',
+                                      diagnosisCode: '',
+                                      completeNow: false,
+                                      amendReason: '',
+                                    });
+                                    setShowConsultModal(true);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl bg-[#073832] text-white font-bold"
+                                >
+                                  {activeConsult.status === 'COMPLETED' ? 'Amend Consult' : 'Edit / Complete'}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setConsultForm({
+                                      ...consultForm,
+                                      id: '',
+                                      queueId: '',
+                                      patientId: consultPatientDetail.id,
+                                      chiefComplaint: '',
+                                      bpSystolic: String(latestTriage?.bpSystolic || '120'),
+                                      bpDiastolic: String(latestTriage?.bpDiastolic || '80'),
+                                      temperatureC: String(latestTriage?.temperatureC || '36.8'),
+                                      pulseBpm: String(latestTriage?.pulseBpm || '76'),
+                                      spo2Percent: String(latestTriage?.spo2Percent || '98'),
+                                      weightKg: String(latestTriage?.weightKg || '68'),
+                                      heightCm: String(latestTriage?.heightCm || '168'),
+                                      completeNow: false,
+                                    });
+                                    setShowConsultModal(true);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl bg-[#073832] text-white font-bold"
+                                >
+                                  + New Consult
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Allergies, Chronic Conditions & Blood/Genotype */}
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold">
+                              Blood Group: {consultPatientDetail.bloodGroup || '—'}
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold">
+                              Genotype: {geno || '—'}
+                            </span>
+                            {consultPatientDetail.allergies ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 font-extrabold">
+                                Allergies: {consultPatientDetail.allergies}
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold">
+                                No Known Allergies
+                              </span>
+                            )}
+                            {consultPatientDetail.chronicConditions && (
+                              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                                Chronic: {consultPatientDetail.chronicConditions}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Vitals Strip */}
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-xl text-center">
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">HEIGHT</div>
+                              <div className="font-extrabold text-slate-900">{latestVitals?.heightCm ? `${latestVitals.heightCm} cm` : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">WEIGHT</div>
+                              <div className="font-extrabold text-slate-900">{latestVitals?.weightKg ? `${latestVitals.weightKg} kg` : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">BMI</div>
+                              <div className="font-extrabold text-[#073832]">{latestVitals?.bmi || '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">BP</div>
+                              <div className="font-extrabold text-slate-900">{latestVitals?.bpSystolic || '—'}/{latestVitals?.bpDiastolic || '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">TEMP</div>
+                              <div className="font-extrabold text-slate-900">{latestVitals?.temperatureC ? `${latestVitals.temperatureC}°C` : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold">PULSE / SpO2</div>
+                              <div className="font-extrabold text-slate-900">{latestVitals?.pulseBpm || '—'} / {latestVitals?.spo2Percent ? `${latestVitals.spo2Percent}%` : '—'}</div>
+                            </div>
+                          </div>
+
+                          {/* Lab Results */}
+                          <div>
+                            <div className="font-extrabold text-slate-800 mb-1.5 flex items-center justify-between">
+                              <span>Laboratory Results ({consultPatientDetail.labRequests?.length || 0})</span>
+                            </div>
+                            {consultPatientDetail.labRequests?.length === 0 ? (
+                              <div className="text-slate-400 italic">No laboratory requests or results recorded.</div>
+                            ) : (
+                              <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                                {consultPatientDetail.labRequests?.map((lr: any) => (
+                                  <div key={lr.id} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <div className="font-bold text-slate-900">{lr.test?.name} <span className="text-[10px] text-slate-400">({lr.requestNumber})</span></div>
+                                      {lr.result ? (
+                                        <div className="text-[11px] text-slate-700">
+                                          Result: <strong className="text-[#073832]">{lr.result.resultValue} {lr.result.unit || ''}</strong>
+                                          {lr.result.referenceRange ? ` · Ref: ${lr.result.referenceRange}` : ''}
+                                          {lr.result.observations ? ` · ${lr.result.observations}` : ''}
+                                        </div>
+                                      ) : (
+                                        <div className="text-[11px] text-slate-400">Status: {lr.status} (Awaiting result)</div>
+                                      )}
+                                    </div>
+                                    {lr.result ? (
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                        lr.result.flag === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                                        lr.result.flag === 'ABNORMAL' ? 'bg-amber-100 text-amber-800' :
+                                        'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        {lr.result.flag}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">{lr.status}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Imaging Results */}
+                          <div>
+                            <div className="font-extrabold text-slate-800 mb-1.5">
+                              Imaging &amp; Radiology Results ({consultPatientDetail.imagingRequests?.length || 0})
+                            </div>
+                            {consultPatientDetail.imagingRequests?.length === 0 ? (
+                              <div className="text-slate-400 italic">No imaging studies recorded.</div>
+                            ) : (
+                              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                {consultPatientDetail.imagingRequests?.map((ir: any) => (
+                                  <div key={ir.id} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70">
+                                    <div className="flex items-center justify-between">
+                                      <div className="font-bold text-slate-900">{ir.imaging?.name} ({ir.imaging?.modality})</div>
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">{ir.status}</span>
+                                    </div>
+                                    {ir.result ? (
+                                      <div className="text-[11px] text-slate-700 mt-1">
+                                        <div><strong>Findings:</strong> {ir.result.findings}</div>
+                                        {ir.result.impression && <div><strong>Impression:</strong> {ir.result.impression}</div>}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[11px] text-slate-400 mt-0.5">Awaiting radiology report</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Medical History & Past Consultations */}
+                          <div>
+                            <div className="font-extrabold text-slate-800 mb-1.5">
+                              Medical History &amp; Past Consultations ({consultPatientDetail.consultations?.length || 0})
+                            </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {consultPatientDetail.consultations?.map((hc: any) => (
+                                <div key={hc.id} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 space-y-0.5">
+                                  <div className="flex justify-between">
+                                    <span className="font-bold text-slate-900">{hc.consultationNumber} — {hc.chiefComplaint}</span>
+                                    <span className="text-[10px] text-slate-400">{new Date(hc.startedAt).toLocaleDateString('en-GH')}</span>
+                                  </div>
+                                  {hc.diagnoses?.length > 0 && (
+                                    <div className="text-[11px] text-emerald-800 font-semibold">
+                                      Diagnoses: {hc.diagnoses.map((d: any) => `${d.title}${d.code ? ` (${d.code})` : ''}`).join(', ')}
+                                    </div>
+                                  )}
+                                  {hc.treatmentPlan && (
+                                    <div className="text-[11px] text-slate-600">Plan: {hc.treatmentPlan}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1438,8 +1863,53 @@ export default function ClinicManagementConsole() {
           )}
 
           {/* TAB 7: LABORATORY */}
-          {tab === 'lab' && lab && (
+          {tab === 'lab' && (
             <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      value={labSearch}
+                      onChange={(e) => setLabSearch(e.target.value)}
+                      placeholder="Search patient, request #, or test..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs"
+                    />
+                  </div>
+                  <select
+                    value={labStatusFilter}
+                    onChange={(e) => setLabStatusFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="REQUESTED">Requested</option>
+                    <option value="SAMPLE_COLLECTED">Sample Collected</option>
+                    <option value="PROCESSING">Processing</option>
+                    <option value="COMPLETED">Completed (Needs Review)</option>
+                    <option value="REVIEWED">Reviewed &amp; Released</option>
+                  </select>
+                  <span className="text-[11px] text-slate-500 font-semibold">
+                    {lab?.catalog?.length || 0} catalog tests
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setLabReqForm({
+                      patientId: patients[0]?.id || '',
+                      consultationId: '',
+                      testId: lab?.catalog?.[0]?.id || '',
+                      priority: 'ROUTINE',
+                      clinicalNotes: '',
+                    });
+                    setShowLabReqModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#073832] text-white text-xs font-bold inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Request Lab Test</span>
+                </button>
+              </div>
+
               <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase text-slate-500">
@@ -1453,58 +1923,168 @@ export default function ClinicManagementConsole() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {lab.requests?.map((r: any) => (
-                      <tr key={r.id}>
-                        <td className="p-3.5 font-bold text-[#073832]">{r.requestNumber}</td>
-                        <td className="p-3.5">{r.patient?.fullName} ({r.patient?.patientNumber})</td>
-                        <td className="p-3.5 font-semibold">{r.test?.name} (GH₵{r.test?.priceGHS?.toFixed(2)})</td>
-                        <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">{r.status}</span>
-                        </td>
-                        <td className="p-3.5">
-                          {r.result ? `${r.result.resultValue} ${r.result.unit || ''} (${r.result.flag})` : 'Pending'}
-                        </td>
-                        <td className="p-3.5 text-right space-x-1.5">
-                          {r.status !== 'REVIEWED' && r.status !== 'CANCELLED' && (
-                            <button
-                              onClick={() => {
-                                setShowLabResultModal(r);
-                                setLabResultForm({
-                                  resultValue: r.result?.resultValue || '',
-                                  unit: r.result?.unit || r.test?.unit || '',
-                                  referenceRange: r.result?.referenceRange || r.test?.referenceRangeText || '',
-                                  flag: r.result?.flag || 'NORMAL',
-                                  observations: r.result?.observations || '',
-                                });
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-bold"
+                    {(lab?.requests || [])
+                      .filter((r: any) => {
+                        if (labStatusFilter !== 'ALL' && r.status !== labStatusFilter) return false;
+                        if (!labSearch.trim()) return true;
+                        const q = labSearch.toLowerCase();
+                        return (
+                          r.requestNumber?.toLowerCase().includes(q) ||
+                          r.patient?.fullName?.toLowerCase().includes(q) ||
+                          r.patient?.patientNumber?.toLowerCase().includes(q) ||
+                          r.test?.name?.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((r: any) => (
+                        <tr key={r.id} className="hover:bg-slate-50/70">
+                          <td className="p-3.5">
+                            <div className="font-bold text-[#073832]">{r.requestNumber}</div>
+                            {r.priority && r.priority !== 'ROUTINE' && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[9px] font-extrabold">
+                                {r.priority}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-semibold text-slate-900">{r.patient?.fullName}</div>
+                            <div className="text-[11px] text-slate-500">{r.patient?.patientNumber}</div>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-semibold text-slate-900">{r.test?.name}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {r.test?.sampleType || 'Blood'} · GH₵{r.test?.priceGHS?.toFixed(2)}
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                r.status === 'REVIEWED'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : r.status === 'COMPLETED'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : r.status === 'SAMPLE_COLLECTED' || r.status === 'PROCESSING'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-800'
+                              }`}
                             >
-                              Enter Result
-                            </button>
-                          )}
-                          {r.status === 'COMPLETED' && (
-                            <button
-                              onClick={async () => {
-                                const res = await fetch('/api/clinic/lab', {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ id: r.id, action: 'review_result', releaseToPatient: true }),
-                                });
-                                const data = await res.json();
-                                if (!res.ok) notify(data.error || 'Review failed', 'err');
-                                else {
-                                  notify('Lab result reviewed & released.');
-                                  await loadAll();
-                                }
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-bold"
-                            >
-                              Review &amp; Release
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            {r.result ? (
+                              <div>
+                                <span className="font-bold text-slate-900">
+                                  {r.result.resultValue} {r.result.unit || ''}
+                                </span>{' '}
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${
+                                    r.result.flag === 'CRITICAL'
+                                      ? 'bg-red-100 text-red-700'
+                                      : r.result.flag === 'ABNORMAL'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-50 text-emerald-700'
+                                  }`}
+                                >
+                                  {r.result.flag}
+                                </span>
+                                {r.result.referenceRange && (
+                                  <div className="text-[10px] text-slate-500">Ref: {r.result.referenceRange}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">Pending</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                            {r.status === 'REQUESTED' && (
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch('/api/clinic/lab', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: r.id, status: 'SAMPLE_COLLECTED' }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) notify(data.error || 'Failed to mark sample collected', 'err');
+                                  else {
+                                    notify('Sample collected.');
+                                    await loadAll();
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold"
+                              >
+                                Collect Sample
+                              </button>
+                            )}
+                            {r.status === 'SAMPLE_COLLECTED' && (
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch('/api/clinic/lab', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: r.id, status: 'PROCESSING' }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) notify(data.error || 'Failed to update status', 'err');
+                                  else {
+                                    notify('Sample processing started.');
+                                    await loadAll();
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 font-bold"
+                              >
+                                Processing
+                              </button>
+                            )}
+                            {r.status !== 'REVIEWED' && r.status !== 'CANCELLED' && (
+                              <button
+                                onClick={() => {
+                                  setShowLabResultModal(r);
+                                  setLabResultForm({
+                                    resultValue: r.result?.resultValue || '',
+                                    unit: r.result?.unit || r.test?.unit || '',
+                                    referenceRange: r.result?.referenceRange || r.test?.referenceRangeText || '',
+                                    flag: r.result?.flag || 'NORMAL',
+                                    observations: r.result?.observations || '',
+                                  });
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-bold"
+                              >
+                                {r.result ? 'Edit Result' : 'Enter Result'}
+                              </button>
+                            )}
+                            {r.status === 'COMPLETED' && (
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch('/api/clinic/lab', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: r.id, action: 'review_result', releaseToPatient: true }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) notify(data.error || 'Review failed', 'err');
+                                  else {
+                                    notify('Lab result reviewed & released.');
+                                    await loadAll();
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-bold"
+                              >
+                                Review &amp; Release
+                              </button>
+                            )}
+                            {r.result && (
+                              <button
+                                onClick={() => setPrintLabReport(r)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold inline-flex items-center gap-1"
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>Report</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -1513,68 +2093,10 @@ export default function ClinicManagementConsole() {
 
           {/* TAB 8: BILLING & PAYMENTS */}
           {tab === 'billing' && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="text-xs font-bold text-slate-600">{invoices.length} clinic invoices</div>
-                <button
-                  onClick={() => setShowInvoiceModal(true)}
-                  className="px-4 py-2 rounded-xl bg-[#073832] text-white text-xs font-bold inline-flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Generate Patient Invoice</span>
-                </button>
-              </div>
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase text-slate-500">
-                    <tr>
-                      <th className="p-3.5">Invoice #</th>
-                      <th className="p-3.5">Patient</th>
-                      <th className="p-3.5">Total</th>
-                      <th className="p-3.5">Paid / Balance</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {invoices.map((inv) => (
-                      <tr key={inv.id}>
-                        <td className="p-3.5 font-bold text-[#073832]">{inv.invoiceNumber}</td>
-                        <td className="p-3.5">{inv.patient?.fullName} ({inv.patient?.patientNumber})</td>
-                        <td className="p-3.5 font-bold">GH₵{inv.totalAmount.toFixed(2)}</td>
-                        <td className="p-3.5">
-                          <span className="text-emerald-700 font-bold">GH₵{inv.amountPaid.toFixed(2)}</span> /{' '}
-                          <span className="text-red-600 font-bold">GH₵{inv.balance.toFixed(2)}</span>
-                        </td>
-                        <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">{inv.status}</span>
-                        </td>
-                        <td className="p-3.5 text-right space-x-1.5">
-                          {inv.balance > 0 && inv.status !== 'CANCELLED' && (
-                            <button
-                              onClick={() => {
-                                setShowPayModal(inv);
-                                setPayForm({ ...payForm, amount: inv.balance });
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-[#073832] text-white font-bold"
-                            >
-                              Record Payment
-                            </button>
-                          )}
-                          <button
-                            onClick={() => window.print()}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold inline-flex items-center gap-1"
-                          >
-                            <Printer className="w-3 h-3" />
-                            <span>Print</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ClinicBillingWorkspace
+              userRole={currentUser?.clinicRole || currentUser?.role}
+              onInvoiceUpdated={loadAll}
+            />
           )}
 
           {/* TAB 9: SERVICES, DEPARTMENTS & STAFF */}
@@ -1690,27 +2212,92 @@ export default function ClinicManagementConsole() {
 
       {/* MODALS */}
       {showPatientModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
-          <form onSubmit={handleRegisterPatient} className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 overflow-y-auto">
+          <form onSubmit={handleRegisterPatient} className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-3 text-xs my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <h3 className="text-base font-extrabold text-[#073832]">Register New Patient</h3>
+              <h3 className="text-base font-extrabold text-[#073832]">
+                {patientForm.id ? 'Edit Patient Profile' : 'Register New Patient'}
+              </h3>
               <button type="button" onClick={() => setShowPatientModal(false)}><X className="w-5 h-5" /></button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input required placeholder="Full Name *" value={patientForm.fullName} onChange={(e) => setPatientForm({ ...patientForm, fullName: e.target.value })} className="px-3 py-2 border rounded-xl col-span-2" />
-              <input required placeholder="Phone (+233...) *" value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} className="px-3 py-2 border rounded-xl" />
-              <input placeholder="Email (optional)" value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} className="px-3 py-2 border rounded-xl" />
-              <input type="date" value={patientForm.dateOfBirth} onChange={(e) => setPatientForm({ ...patientForm, dateOfBirth: e.target.value })} className="px-3 py-2 border rounded-xl" />
+            <div className="text-[11px] font-bold uppercase text-slate-400 pt-1">Personal &amp; Demographics</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <input required placeholder="Full Name *" value={patientForm.fullName} onChange={(e) => setPatientForm({ ...patientForm, fullName: e.target.value })} className="px-3 py-2 border rounded-xl col-span-2 sm:col-span-2" />
               <select value={patientForm.gender} onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value })} className="px-3 py-2 border rounded-xl bg-white">
                 <option value="Female">Female</option>
                 <option value="Male">Male</option>
               </select>
-              <input placeholder="Residential Address" value={patientForm.address} onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })} className="px-3 py-2 border rounded-xl col-span-2" />
-              <input placeholder="Known Allergies" value={patientForm.allergies} onChange={(e) => setPatientForm({ ...patientForm, allergies: e.target.value })} className="px-3 py-2 border rounded-xl col-span-2" />
+              <input required placeholder="Phone (+233...) *" value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Email (optional)" value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input type="date" title="Date of Birth" value={patientForm.dateOfBirth} onChange={(e) => setPatientForm({ ...patientForm, dateOfBirth: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <select value={patientForm.maritalStatus} onChange={(e) => setPatientForm({ ...patientForm, maritalStatus: e.target.value })} className="px-3 py-2 border rounded-xl bg-white">
+                <option value="">Marital Status</option>
+                <option value="Single">Single</option>
+                <option value="Married">Married</option>
+                <option value="Divorced">Divorced</option>
+                <option value="Widowed">Widowed</option>
+              </select>
+              <input placeholder="Occupation" value={patientForm.occupation} onChange={(e) => setPatientForm({ ...patientForm, occupation: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Ghana Card (GHA-...)" value={patientForm.ghanaCardNumber} onChange={(e) => setPatientForm({ ...patientForm, ghanaCardNumber: e.target.value })} className="px-3 py-2 border rounded-xl" />
+            </div>
+
+            <div className="text-[11px] font-bold uppercase text-slate-400 pt-1">Clinical Baseline, Vitals &amp; Insurance</div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 bg-slate-50 p-3 rounded-xl">
+              <select value={patientForm.bloodGroup} onChange={(e) => setPatientForm({ ...patientForm, bloodGroup: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white">
+                <option value="">Blood Group</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </select>
+              <select value={patientForm.genotype} onChange={(e) => setPatientForm({ ...patientForm, genotype: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white">
+                <option value="">Genotype</option>
+                <option value="AA">AA</option>
+                <option value="AS">AS</option>
+                <option value="AC">AC</option>
+                <option value="SS">SS</option>
+                <option value="SC">SC</option>
+                <option value="CC">CC</option>
+              </select>
+              <input type="number" step="0.1" placeholder="Height (cm)" value={patientForm.heightCm} onChange={(e) => setPatientForm({ ...patientForm, heightCm: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white" />
+              <input type="number" step="0.1" placeholder="Weight (kg)" value={patientForm.weightKg} onChange={(e) => setPatientForm({ ...patientForm, weightKg: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white" />
+              <div className="px-2.5 py-2 font-bold text-[#073832] flex items-center">BMI: {calcPatientFormBmi()}</div>
+              <select value={patientForm.insuranceProviderCode} onChange={(e) => setPatientForm({ ...patientForm, insuranceProviderCode: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white col-span-2">
+                <option value="">NHIS / Insurance Provider (Optional)</option>
+                <option value="NHIS">NHIS (National Health Insurance)</option>
+                <option value="ACACIA">Acacia Health Insurance</option>
+                <option value="GLICO">GLICO Healthcare</option>
+                <option value="PREMIER">Premier Health Insurance</option>
+                <option value="NATIONWIDE">Nationwide Medical Insurance</option>
+              </select>
+              <input placeholder="NHIS / Policy Number" value={patientForm.insuranceNumber} onChange={(e) => setPatientForm({ ...patientForm, insuranceNumber: e.target.value })} className="px-2.5 py-2 border rounded-xl bg-white col-span-3" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input placeholder="Known Allergies (e.g. Penicillin, Sulfa)" value={patientForm.allergies} onChange={(e) => setPatientForm({ ...patientForm, allergies: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Chronic Conditions (e.g. Hypertension, Diabetes)" value={patientForm.chronicConditions} onChange={(e) => setPatientForm({ ...patientForm, chronicConditions: e.target.value })} className="px-3 py-2 border rounded-xl" />
+            </div>
+
+            <div className="text-[11px] font-bold uppercase text-slate-400 pt-1">Address, Next of Kin &amp; Emergency Contact</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <input placeholder="Residential Address" value={patientForm.address} onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })} className="px-3 py-2 border rounded-xl col-span-2 sm:col-span-1" />
+              <input placeholder="Town / City" value={patientForm.townCity} onChange={(e) => setPatientForm({ ...patientForm, townCity: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Region (e.g. Greater Accra)" value={patientForm.region} onChange={(e) => setPatientForm({ ...patientForm, region: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Next of Kin Name" value={patientForm.nextOfKinName} onChange={(e) => setPatientForm({ ...patientForm, nextOfKinName: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Next of Kin Phone" value={patientForm.nextOfKinPhone} onChange={(e) => setPatientForm({ ...patientForm, nextOfKinPhone: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Next of Kin Relation" value={patientForm.nextOfKinRelation} onChange={(e) => setPatientForm({ ...patientForm, nextOfKinRelation: e.target.value })} className="px-3 py-2 border rounded-xl" />
               <input placeholder="Emergency Contact Name" value={patientForm.emergencyName} onChange={(e) => setPatientForm({ ...patientForm, emergencyName: e.target.value })} className="px-3 py-2 border rounded-xl" />
               <input placeholder="Emergency Phone (+233)" value={patientForm.emergencyPhone} onChange={(e) => setPatientForm({ ...patientForm, emergencyPhone: e.target.value })} className="px-3 py-2 border rounded-xl" />
+              <input placeholder="Emergency Relation" value={patientForm.emergencyRelation} onChange={(e) => setPatientForm({ ...patientForm, emergencyRelation: e.target.value })} className="px-3 py-2 border rounded-xl" />
             </div>
-            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl bg-[#073832] text-white font-bold">Save Patient</button>
+
+            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl bg-[#073832] text-white font-bold">
+              {patientForm.id ? 'Update Patient Profile' : 'Save Patient'}
+            </button>
           </form>
         </div>
       )}
@@ -1815,17 +2402,99 @@ export default function ClinicManagementConsole() {
               <h3 className="text-base font-extrabold text-[#073832]">Request Laboratory Test</h3>
               <button type="button" onClick={() => setShowLabReqModal(false)}><X className="w-5 h-5" /></button>
             </div>
+            <select required value={labReqForm.patientId} onChange={(e) => setLabReqForm({ ...labReqForm, patientId: e.target.value })} className="w-full px-3 py-2 border rounded-xl bg-white">
+              <option value="">Select Patient *</option>
+              {patients.map((p) => <option key={p.id} value={p.id}>{p.patientNumber} — {p.fullName}</option>)}
+            </select>
             <select required value={labReqForm.testId} onChange={(e) => setLabReqForm({ ...labReqForm, testId: e.target.value })} className="w-full px-3 py-2 border rounded-xl bg-white">
               <option value="">Select Lab Test *</option>
-              {lab?.catalog?.map((t: any) => <option key={t.id} value={t.id}>{t.name} (GH₵{t.priceGHS})</option>)}
+              {lab?.catalog?.map((t: any) => <option key={t.id} value={t.id}>{t.name} ({t.sampleType}) — GH₵{t.priceGHS}</option>)}
             </select>
             <select value={labReqForm.priority} onChange={(e) => setLabReqForm({ ...labReqForm, priority: e.target.value })} className="w-full px-3 py-2 border rounded-xl bg-white">
               <option value="ROUTINE">ROUTINE</option>
               <option value="URGENT">URGENT</option>
+              <option value="STAT">STAT (Immediate)</option>
             </select>
-            <textarea rows={2} placeholder="Clinical Notes" value={labReqForm.clinicalNotes} onChange={(e) => setLabReqForm({ ...labReqForm, clinicalNotes: e.target.value })} className="w-full px-3 py-2 border rounded-xl" />
+            <textarea rows={2} placeholder="Clinical Notes / Indication" value={labReqForm.clinicalNotes} onChange={(e) => setLabReqForm({ ...labReqForm, clinicalNotes: e.target.value })} className="w-full px-3 py-2 border rounded-xl" />
             <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl bg-[#073832] text-white font-bold">Submit Lab Request</button>
           </form>
+        </div>
+      )}
+
+      {printLabReport && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4 overflow-y-auto print:bg-white print:p-0">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 space-y-5 text-xs shadow-2xl print:shadow-none print:rounded-none">
+            <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#073832]">Action Boat Medical Centre</h2>
+                <p className="text-slate-500">Clinical Laboratory Department · Official Diagnostic Report</p>
+              </div>
+              <div className="text-right">
+                <div className="font-extrabold text-slate-900">{printLabReport.requestNumber}</div>
+                <div className="text-slate-500">Status: {printLabReport.status}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl">
+              <div><span className="text-slate-400">Patient Name:</span> <strong>{printLabReport.patient?.fullName}</strong></div>
+              <div><span className="text-slate-400">Patient ID:</span> <strong>{printLabReport.patient?.patientNumber}</strong></div>
+              <div><span className="text-slate-400">Gender / DOB:</span> <strong>{printLabReport.patient?.gender || '—'} {printLabReport.patient?.dateOfBirth ? `(${printLabReport.patient.dateOfBirth})` : ''}</strong></div>
+              <div><span className="text-slate-400">Phone:</span> <strong>{printLabReport.patient?.phone || '—'}</strong></div>
+              <div><span className="text-slate-400">Sample Type:</span> <strong>{printLabReport.test?.sampleType || 'Blood'}</strong></div>
+              <div><span className="text-slate-400">Collected At:</span> <strong>{printLabReport.sampleCollectedAt ? new Date(printLabReport.sampleCollectedAt).toLocaleString('en-GH') : '—'}</strong></div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100 text-[10px] uppercase text-slate-600">
+                  <tr>
+                    <th className="p-3">Test</th>
+                    <th className="p-3">Result</th>
+                    <th className="p-3">Unit</th>
+                    <th className="p-3">Reference Range</th>
+                    <th className="p-3">Flag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-slate-100">
+                    <td className="p-3 font-bold text-slate-900">{printLabReport.test?.name}</td>
+                    <td className="p-3 font-extrabold text-[#073832] text-sm">{printLabReport.result?.resultValue}</td>
+                    <td className="p-3">{printLabReport.result?.unit || '—'}</td>
+                    <td className="p-3">{printLabReport.result?.referenceRange || '—'}</td>
+                    <td className="p-3 font-bold">{printLabReport.result?.flag}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {printLabReport.result?.observations && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="font-bold text-slate-700 mb-1">Laboratory Observations / Comments</div>
+                <div className="text-slate-700 whitespace-pre-wrap">{printLabReport.result.observations}</div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 text-[11px] text-slate-600">
+              <div>
+                <div>Entered By: <strong>{printLabReport.result?.enteredByName || 'Lab Technician'}</strong></div>
+                <div>Entered At: {printLabReport.result?.enteredAt ? new Date(printLabReport.result.enteredAt).toLocaleString('en-GH') : '—'}</div>
+              </div>
+              <div className="text-right">
+                <div>Reviewed &amp; Released By: <strong>{printLabReport.result?.reviewedByName || printLabReport.reviewedByName || 'Pending Review'}</strong></div>
+                <div>Reviewed At: {printLabReport.reviewedAt ? new Date(printLabReport.reviewedAt).toLocaleString('en-GH') : '—'}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 print:hidden">
+              <button type="button" onClick={() => setPrintLabReport(null)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold text-slate-700">
+                Close
+              </button>
+              <button type="button" onClick={() => window.print()} className="px-4 py-2 rounded-xl bg-[#073832] text-white font-bold inline-flex items-center gap-1.5">
+                <Printer className="w-4 h-4" />
+                <span>Print Lab Report</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

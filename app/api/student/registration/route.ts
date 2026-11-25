@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { resolveStudentRecord, logAcademicAudit } from '@/lib/portal-auth';
+import {
+  AVAILABLE_STUDY_TRACKS,
+  getStudyTrackConfig,
+  normalizeStudyTrack,
+  resolveCourseSemesterForTrack,
+} from '@/lib/study-tracks';
 
 const MAX_SEMESTER_CREDITS = 24;
 
@@ -63,6 +69,9 @@ export async function GET() {
     const registeredCourseIds = new Set(registered.map((r) => r.courseId));
     const passedCourseIds = new Set(passedAssessments.map((a) => a.courseId));
 
+    const studentTrack = normalizeStudyTrack((student as any).studyTrack);
+    const trackConfig = getStudyTrackConfig(studentTrack);
+
     const enrichedAvailable = availableCourses.map((c) => {
       const missingPrerequisites = c.prerequisitesList
         .filter((p) => !passedCourseIds.has(p.prerequisiteCourseId))
@@ -81,6 +90,7 @@ export async function GET() {
 
       return {
         ...c,
+        trackSemester: resolveCourseSemesterForTrack(c, studentTrack),
         isRegistered: registeredCourseIds.has(c.id),
         prerequisitesMet: missingPrerequisites.length === 0,
         missingPrerequisites,
@@ -99,7 +109,10 @@ export async function GET() {
         programme: student.programme.name,
         semester: student.currentSemester,
         academicYear: student.academicYear,
+        studyTrack: studentTrack,
       },
+      trackConfig,
+      availableTracks: AVAILABLE_STUDY_TRACKS,
       availableCourses: enrichedAvailable,
       registeredCourses: registered,
       totalRegisteredCredits,
@@ -118,7 +131,37 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { action, courseId } = body;
+    const { action, courseId, studyTrack } = body;
+
+    if (action === 'set_track') {
+      const normalizedTrack = normalizeStudyTrack(studyTrack);
+      const trackConfig = getStudyTrackConfig(normalizedTrack);
+
+      const updatedStudent = await prisma.student.update({
+        where: { id: student.id },
+        data: {
+          studyTrack: normalizedTrack,
+          ...(normalizedTrack === '6_MONTH' ? { currentSemester: 'First Semester' } : {}),
+        },
+        select: { id: true, studentId: true, studyTrack: true, currentSemester: true },
+      });
+
+      await logAcademicAudit({
+        actorId: student.userId,
+        actorName: student.studentId,
+        actorRole: 'STUDENT',
+        action: 'UPDATE_STUDY_TRACK',
+        entityType: 'Student',
+        entityId: student.id,
+        details: { studyTrack: normalizedTrack },
+      });
+
+      return NextResponse.json({
+        status: true,
+        student: updatedStudent,
+        trackConfig,
+      });
+    }
 
     if (!courseId) {
       return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });

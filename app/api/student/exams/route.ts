@@ -6,6 +6,7 @@ import {
   isResultPublished,
   safeJsonParse,
 } from '@/lib/exam-lifecycle';
+import { getStudyTrackConfig, normalizeStudyTrack } from '@/lib/study-tracks';
 
 export async function GET() {
   try {
@@ -32,7 +33,7 @@ export async function GET() {
         },
         sections: {
           orderBy: { orderIndex: 'asc' },
-          select: { id: true, title: true, marksAllocated: true, questionCount: true },
+          select: { id: true, title: true, sectionType: true, marksAllocated: true, questionCount: true },
         },
         _count: { select: { questions: true } },
         attempts: {
@@ -77,6 +78,7 @@ export async function GET() {
         id: exam.id,
         title: exam.title,
         examType: exam.examType,
+        studyTrack: (exam as any).studyTrack || null,
         mode: exam.mode,
         courseId: exam.courseId,
         courseCode: exam.course.code,
@@ -94,7 +96,11 @@ export async function GET() {
         passMark: exam.passMark,
         questionCount: exam._count.questions,
         sectionsCount: exam.sections.length,
+        sections: exam.sections,
         status: exam.status,
+        isLocked: exam.isLocked,
+        unlockedAt: exam.unlockedAt,
+        unlockedByName: exam.unlockedByName,
         maxRetakes: exam.maxRetakes,
         requireFinancialClearance: exam.requireFinancialClearance,
         publicationMode: exam.publicationMode,
@@ -136,14 +142,18 @@ export async function GET() {
       });
     }
 
+    const studentTrack = normalizeStudyTrack((student as any).studyTrack);
+
     return NextResponse.json({
       student: {
         id: student.id,
         studentId: student.studentId,
         name: student.user?.name || 'Student',
         status: student.status,
+        studyTrack: studentTrack,
         outstandingBalance,
       },
+      trackConfig: getStudyTrackConfig(studentTrack),
       exams: formatted,
     });
   } catch (error: any) {

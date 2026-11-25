@@ -6,6 +6,8 @@ import {
   logAcademicAudit,
 } from '@/lib/portal-auth';
 import { generateRubricOnce } from '@/lib/auto-grader';
+import { generateExaminationFromPdfMaterials } from '@/lib/pdf-exam-generator';
+import { normalizeStudyTrack } from '@/lib/study-tracks';
 
 export async function GET(req: NextRequest) {
   try {
@@ -183,6 +185,53 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    if (body.action === 'generate_from_pdf') {
+      const d = body.data || body;
+      const targetCourseId = d.courseId || body.courseId;
+      if (!targetCourseId) {
+        return NextResponse.json({ error: 'courseId is required' }, { status: 400 });
+      }
+      const hasAccess = await verifyLecturerCourseAccess(auth.userId!, auth.role!, targetCourseId);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Forbidden: You are not assigned to this course.' },
+          { status: 403 }
+        );
+      }
+      const generated = await generateExaminationFromPdfMaterials({
+        courseId: targetCourseId,
+        examId: body.examId || d.examId,
+        materialIds: Array.isArray(d.materialIds) ? d.materialIds : undefined,
+        topicIds: Array.isArray(d.topicIds) ? d.topicIds : undefined,
+        title: d.title,
+        examType: d.examType || 'END_OF_SEMESTER',
+        studyTrack: d.studyTrack ? normalizeStudyTrack(d.studyTrack) : null,
+        objectiveCount: d.objectiveCount,
+        writtenCount: d.writtenCount,
+        objectiveMarks: d.objectiveMarks,
+        writtenMarks: d.writtenMarks,
+        durationMinutes: d.durationMinutes,
+        passMark: d.passMark,
+        scheduledDate: d.scheduledDate,
+        scheduledTime: d.scheduledTime,
+        venue: d.venue,
+        instructions: d.instructions,
+        isPublished: d.isPublished,
+        status: d.status,
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'LECTURER_GENERATE_EXAM_FROM_PDF',
+        entityType: 'Examination',
+        entityId: generated.exam?.id || targetCourseId,
+        details: generated.summary,
+      });
+      return NextResponse.json({ status: true, ...generated }, { status: 201 });
+    }
+
     const {
       examId,
       sectionId,

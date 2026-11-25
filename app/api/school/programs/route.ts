@@ -5,6 +5,7 @@ import {
   ADDITIONAL_BROCHURE_PROGRAMMES,
   GRADUATION_REQUIREMENTS,
 } from '@/lib/school-programs-catalog';
+import { AVAILABLE_STUDY_TRACKS } from '@/lib/study-tracks';
 
 export async function GET() {
   try {
@@ -54,16 +55,19 @@ export async function GET() {
                 'Action Boat Medical Centre / Homeopathy — Tema Medical Camp (Gbetsile Pure Oil)',
               careerOpportunities: brochure?.careerOpportunities ?? [],
               courseOutline: brochure?.courseOutline ?? [],
+              tracks: AVAILABLE_STUDY_TRACKS,
             };
           })
         : BROCHURE_PROGRAMMES.map((b, idx) => ({
             id: `brochure-${b.code.toLowerCase()}-${idx}`,
             ...b,
             courses: [],
+            tracks: AVAILABLE_STUDY_TRACKS,
           }));
 
     return NextResponse.json({
       programs,
+      studyTracks: AVAILABLE_STUDY_TRACKS,
       additionalProgrammes: ADDITIONAL_BROCHURE_PROGRAMMES,
       graduationRequirements: GRADUATION_REQUIREMENTS,
     });

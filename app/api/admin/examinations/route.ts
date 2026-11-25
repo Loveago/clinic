@@ -12,6 +12,8 @@ import {
   recalculateContinuousAssessment,
 } from '@/lib/auto-grader';
 import { sendNotificationOnce } from '@/lib/school-admin';
+import { generateExaminationFromPdfMaterials } from '@/lib/pdf-exam-generator';
+import { normalizeStudyTrack } from '@/lib/study-tracks';
 
 const SUBJECTIVE_TYPES = new Set(['SHORT_ANSWER', 'ESSAY', 'SCENARIO']);
 const EXAM_ADMIN_ROLES = [...ACADEMIC_ADMIN_ROLES, 'EXAM_OFFICER'];
@@ -324,6 +326,89 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: true, result: updated });
     }
 
+    if (action === 'lock_exam' && examId) {
+      const updated = await prisma.examination.update({
+        where: { id: examId },
+        data: { isLocked: true },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'LOCK_EXAM',
+        entityType: 'Examination',
+        entityId: examId,
+        details: { title: updated.title, isLocked: true },
+      });
+      return NextResponse.json({ status: true, exam: updated });
+    }
+
+    if (action === 'unlock_exam' && examId) {
+      const updated = await prisma.examination.update({
+        where: { id: examId },
+        data: {
+          isLocked: false,
+          unlockedAt: new Date(),
+          unlockedByName: auth.name || 'Administrator',
+          status: 'ACTIVE',
+          isPublished: true,
+        },
+        include: { course: { select: { id: true, code: true, title: true } } },
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'UNLOCK_EXAM',
+        entityType: 'Examination',
+        entityId: examId,
+        details: { title: updated.title, isLocked: false, unlockedByName: updated.unlockedByName },
+      });
+      return NextResponse.json({ status: true, exam: updated });
+    }
+
+    if (action === 'bulk_lock' && Array.isArray(body.examIds) && body.examIds.length > 0) {
+      const result = await prisma.examination.updateMany({
+        where: { id: { in: body.examIds } },
+        data: { isLocked: true },
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'BULK_LOCK_EXAMS',
+        entityType: 'Examination',
+        entityId: body.examIds.join(','),
+        details: { count: result.count, examIds: body.examIds },
+      });
+      return NextResponse.json({ status: true, count: result.count });
+    }
+
+    if (action === 'bulk_unlock' && Array.isArray(body.examIds) && body.examIds.length > 0) {
+      const now = new Date();
+      const result = await prisma.examination.updateMany({
+        where: { id: { in: body.examIds } },
+        data: {
+          isLocked: false,
+          unlockedAt: now,
+          unlockedByName: auth.name || 'Administrator',
+          status: 'ACTIVE',
+          isPublished: true,
+        },
+      });
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'BULK_UNLOCK_EXAMS',
+        entityType: 'Examination',
+        entityId: body.examIds.join(','),
+        details: { count: result.count, examIds: body.examIds },
+      });
+      return NextResponse.json({ status: true, count: result.count });
+    }
+
     if (action === 'create_period') {
       const { title, academicYearId, semesterId, programmeId, startDate, endDate, instructions, status } =
         body.data || body;
@@ -430,10 +515,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Section title is required' }, { status: 400 });
       }
       const existingCount = await prisma.examinationSection.count({ where: { examId } });
+      const sectionType = String(d.sectionType || 'OBJECTIVE').toUpperCase() === 'WRITTEN' ? 'WRITTEN' : 'OBJECTIVE';
       const section = await prisma.examinationSection.create({
         data: {
           examId,
           title: String(d.title).trim(),
+          sectionType,
           instructions: d.instructions || null,
           orderIndex: Number(d.orderIndex) || existingCount + 1,
           marksAllocated: Number(d.marksAllocated) || 0,
@@ -451,6 +538,48 @@ export async function POST(req: NextRequest) {
         details: section,
       });
       return NextResponse.json({ status: true, section }, { status: 201 });
+    }
+
+    if (action === 'generate_from_pdf') {
+      const d = body.data || body;
+      const targetCourseId = d.courseId || body.courseId;
+      if (!targetCourseId) {
+        return NextResponse.json({ error: 'courseId is required to generate an examination from PDFs' }, { status: 400 });
+      }
+
+      const generated = await generateExaminationFromPdfMaterials({
+        courseId: targetCourseId,
+        examId: examId || d.examId,
+        materialIds: Array.isArray(d.materialIds) ? d.materialIds : undefined,
+        topicIds: Array.isArray(d.topicIds) ? d.topicIds : undefined,
+        title: d.title,
+        examType: d.examType || 'END_OF_SEMESTER',
+        studyTrack: d.studyTrack ? normalizeStudyTrack(d.studyTrack) : null,
+        objectiveCount: d.objectiveCount,
+        writtenCount: d.writtenCount,
+        objectiveMarks: d.objectiveMarks,
+        writtenMarks: d.writtenMarks,
+        durationMinutes: d.durationMinutes,
+        passMark: d.passMark,
+        scheduledDate: d.scheduledDate,
+        scheduledTime: d.scheduledTime,
+        venue: d.venue,
+        instructions: d.instructions,
+        isPublished: d.isPublished,
+        status: d.status,
+      });
+
+      await logAcademicAudit({
+        actorId: auth.userId,
+        actorName: auth.name,
+        actorRole: auth.role,
+        action: 'GENERATE_EXAM_FROM_PDF',
+        entityType: 'Examination',
+        entityId: generated.exam?.id || targetCourseId,
+        details: generated.summary,
+      });
+
+      return NextResponse.json({ status: true, ...generated }, { status: 201 });
     }
 
     if (action === 'add_question' && examId) {
@@ -729,6 +858,7 @@ export async function POST(req: NextRequest) {
           periodId: examData.periodId || null,
           title: examData.title,
           examType: examData.examType || 'END_OF_SEMESTER',
+          studyTrack: examData.studyTrack ? normalizeStudyTrack(examData.studyTrack) : null,
           academicYearId: examData.academicYearId || null,
           semesterId: examData.semesterId || null,
           cohortId: examData.cohortId || null,
@@ -755,6 +885,12 @@ export async function POST(req: NextRequest) {
             : null,
           maxRetakes: Number(examData.maxRetakes) || 1,
           status: examData.status || 'UPCOMING',
+          isLocked:
+            examData.isLocked !== undefined
+              ? Boolean(examData.isLocked)
+              : body.isLocked !== undefined
+                ? Boolean(body.isLocked)
+                : false,
           isPublished: examData.isPublished !== undefined ? Boolean(examData.isPublished) : true,
           allowReview: examData.allowReview !== undefined ? Boolean(examData.allowReview) : true,
           showExplanations:
@@ -774,6 +910,10 @@ export async function POST(req: NextRequest) {
             data: {
               examId: exam.id,
               title: String(sec.title || `Section ${sIdx}`),
+              sectionType:
+                String(sec.sectionType || 'OBJECTIVE').toUpperCase() === 'WRITTEN'
+                  ? 'WRITTEN'
+                  : 'OBJECTIVE',
               instructions: sec.instructions || null,
               orderIndex: Number(sec.orderIndex) || sIdx++,
               marksAllocated: Number(sec.marksAllocated) || 0,

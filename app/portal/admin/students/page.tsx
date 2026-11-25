@@ -115,6 +115,7 @@ export default function AdminStudentsWorkspace() {
         level: d.student.level,
         currentSemester: d.student.currentSemester,
         cohortId: d.student.cohortId || '',
+        studyTrack: d.student.studyTrack || '12_MONTH',
         status: d.student.status,
       });
       setEditReason('');
@@ -492,6 +493,13 @@ export default function AdminStudentsWorkspace() {
                         {['ACTIVE', 'ADMITTED', 'REGISTRATION_PENDING', 'DEFERRED', 'SUSPENDED', 'WITHDRAWN', 'GRADUATED', 'ARCHIVED'].map((s) => (
                           <option key={s} value={s}>{s}</option>
                         ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Study Track</label>
+                      <select value={editForm.studyTrack || '12_MONTH'} onChange={(e) => setEditForm({ ...editForm, studyTrack: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2">
+                        <option value="12_MONTH">12-Month Standard Track (2 Semesters)</option>
+                        <option value="6_MONTH">6-Month Intensive Track (1 Semester)</option>
                       </select>
                     </div>
                   </div>

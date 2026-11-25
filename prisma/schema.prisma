@@ -415,6 +415,7 @@ model Student {
   intake                    String         @default("2025/2026 Cohort")
   academicYear              String         @default("2025/2026")
   currentSemester           String         @default("First Semester")
+  studyTrack                String         @default("12_MONTH") // 6_MONTH (1 semester, Modules 1-13 -> Final Exam) | 12_MONTH (2 semesters -> End-of-Semester + Final Exam)
   status                    StudentStatus  @default(ACTIVE)
   admissionDate             DateTime       @default(now())
   admissionReference        String?
@@ -1035,7 +1036,8 @@ model Examination {
   periodId                         String?
   period                           ExaminationPeriod?   @relation(fields: [periodId], references: [id], onDelete: SetNull)
   title                            String
-  examType                         String               @default("END_OF_SEMESTER") // QUIZ, MID_SEMESTER, END_OF_SEMESTER, PRACTICAL, RESIT, SUPPLEMENTARY
+  examType                         String               @default("END_OF_SEMESTER") // QUIZ, MID_SEMESTER, END_OF_SEMESTER, FINAL, PRACTICAL, RESIT, SUPPLEMENTARY
+  studyTrack                       String?              // null = all tracks, "6_MONTH", or "12_MONTH"
   academicYearId                   String?
   semesterId                       String?
   cohortId                         String?
@@ -1058,6 +1060,9 @@ model Examination {
   integrityPolicyJson              String?
   maxRetakes                       Int                  @default(1)
   status                           String               @default("UPCOMING") // UPCOMING, ACTIVE, CONCLUDED
+  isLocked                         Boolean              @default(true)
+  unlockedAt                       DateTime?
+  unlockedByName                   String?
   isPublished                      Boolean              @default(true)
   allowReview                      Boolean              @default(true)
   showExplanations                 Boolean              @default(true)
@@ -1078,6 +1083,7 @@ model ExaminationSection {
   examId         String
   exam           Examination @relation(fields: [examId], references: [id], onDelete: Cascade)
   title          String
+  sectionType    String      @default("OBJECTIVE") // OBJECTIVE, WRITTEN
   instructions   String?
   orderIndex     Int         @default(0)
   marksAllocated Float       @default(0)

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { logAcademicAudit } from '@/lib/portal-auth';
+import { checkTrackExamCompatibility } from '@/lib/study-tracks';
 import {
   gradeObjectiveAnswer,
   evaluateSubjectiveWithAI,
@@ -13,6 +14,7 @@ export interface AssignedPaperQuestion {
   questionId: string;
   sectionId: string | null;
   sectionTitle: string | null;
+  sectionType?: string | null;
   orderIndex: number;
   optionsOrder?: string[]; // shuffled option labels if randomizeOptions is true
 }
@@ -21,6 +23,7 @@ export interface AssignedPaper {
   sections: Array<{
     id: string | null;
     title: string;
+    sectionType?: string;
     instructions: string | null;
     marksAllocated: number;
     questionIds: string[];
@@ -52,11 +55,15 @@ export async function checkExamEligibility(params: {
     status: string;
     cohortId?: string | null;
     level?: string | null;
+    studyTrack?: string | null;
   };
   exam: {
     id: string;
     courseId: string;
     cohortId?: string | null;
+    studyTrack?: string | null;
+    examType?: string | null;
+    isLocked?: boolean;
     isPublished: boolean;
     status: string;
     startTime?: Date | null;
@@ -82,8 +89,21 @@ export async function checkExamEligibility(params: {
     reasons.push('This examination is not currently open.');
   }
 
+  if (exam.isLocked) {
+    reasons.push('This examination is currently locked by the Administrator.');
+  }
+
   if (exam.cohortId && student.cohortId && exam.cohortId !== student.cohortId) {
     reasons.push('This examination is restricted to a different cohort.');
+  }
+
+  const trackCheck = checkTrackExamCompatibility({
+    studentTrack: student.studyTrack,
+    examTrack: exam.studyTrack,
+    examType: exam.examType,
+  });
+  if (!trackCheck.compatible && trackCheck.reason) {
+    reasons.push(trackCheck.reason);
   }
 
   const registration = await prisma.courseRegistration.findFirst({
@@ -180,6 +200,7 @@ export function buildAssignedPaper(exam: {
   sections?: Array<{
     id: string;
     title: string;
+    sectionType?: string | null;
     instructions: string | null;
     orderIndex: number;
     marksAllocated: number;
@@ -201,6 +222,7 @@ export function buildAssignedPaper(exam: {
     q: (typeof allQuestions)[number],
     sectionId: string | null,
     sectionTitle: string | null,
+    sectionType: string | null,
     idx: number
   ): AssignedPaperQuestion => {
     const parsedOptions = safeJsonParse<string[]>(q.optionsJson, []);
@@ -211,6 +233,7 @@ export function buildAssignedPaper(exam: {
       questionId: q.id,
       sectionId,
       sectionTitle,
+      sectionType,
       orderIndex: idx,
       ...(shouldShuffleOptions ? { optionsOrder: shuffleArray(parsedOptions) } : {}),
     };
@@ -218,12 +241,13 @@ export function buildAssignedPaper(exam: {
 
   if (sections.length === 0) {
     const ordered = exam.randomizeQuestions ? shuffleArray(allQuestions) : allQuestions;
-    const assignedQs = ordered.map((q, i) => assignQuestion(q, null, null, i + 1));
+    const assignedQs = ordered.map((q, i) => assignQuestion(q, null, null, null, i + 1));
     return {
       sections: [
         {
           id: null,
           title: 'General Examination',
+          sectionType: 'OBJECTIVE',
           instructions: null,
           marksAllocated: 0,
           questionIds: assignedQs.map((q) => q.questionId),
@@ -250,15 +274,17 @@ export function buildAssignedPaper(exam: {
     if (sec.questionCount > 0 && secQs.length > sec.questionCount) {
       secQs = secQs.slice(0, sec.questionCount);
     }
+    const secType = sec.sectionType || 'OBJECTIVE';
     const qIds: string[] = [];
     for (const q of secQs) {
       usedIds.add(q.id);
       qIds.push(q.id);
-      assignedQs.push(assignQuestion(q, sec.id, sec.title, globalIndex++));
+      assignedQs.push(assignQuestion(q, sec.id, sec.title, secType, globalIndex++));
     }
     assignedSections.push({
       id: sec.id,
       title: sec.title,
+      sectionType: secType,
       instructions: sec.instructions,
       marksAllocated: sec.marksAllocated,
       questionIds: qIds,
@@ -272,11 +298,12 @@ export function buildAssignedPaper(exam: {
     const qIds: string[] = [];
     for (const q of orderedUnsectioned) {
       qIds.push(q.id);
-      assignedQs.push(assignQuestion(q, null, 'Additional Questions', globalIndex++));
+      assignedQs.push(assignQuestion(q, null, 'Additional Questions', 'OBJECTIVE', globalIndex++));
     }
     assignedSections.push({
       id: null,
       title: 'Additional Questions',
+      sectionType: 'OBJECTIVE',
       instructions: null,
       marksAllocated: 0,
       questionIds: qIds,

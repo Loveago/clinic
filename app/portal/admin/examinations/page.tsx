@@ -24,6 +24,8 @@ import {
   Sparkles,
   Check,
   Ban,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import DemoRoleSwitcher from '@/components/DemoRoleSwitcher';
 
@@ -32,6 +34,7 @@ type ExamTab =
   | 'periods'
   | 'builder'
   | 'scheduling'
+  | 'lockControl'
   | 'publication'
   | 'analytics';
 
@@ -157,6 +160,16 @@ export default function AdminExaminationsPage() {
     mode: 'ONLINE',
   });
   const [scheduleConflicts, setScheduleConflicts] = useState<any[]>([]);
+
+  // Lock & Unlock Control + PDF Comprehensive Exam state
+  const [lockTrackFilter, setLockTrackFilter] = useState('');
+  const [lockTypeFilter, setLockTypeFilter] = useState('');
+  const [genForm, setGenForm] = useState({
+    courseId: '',
+    studyTrack: '6_MONTH',
+    examType: 'FINAL',
+    title: '',
+  });
 
   const showToast = (type: 'ok' | 'err', msg: string) => {
     setToast({ type, msg });
@@ -303,6 +316,7 @@ export default function AdminExaminationsPage() {
             { key: 'periods', label: 'Examination Periods', icon: Calendar },
             { key: 'builder', label: 'Paper Builder & Question Bank', icon: Layers },
             { key: 'scheduling', label: 'Scheduling & Conflicts', icon: Clock },
+            { key: 'lockControl', label: 'Lock & Unlock Control', icon: Lock },
             { key: 'publication', label: 'Results Publication & Retries', icon: Send },
             { key: 'analytics', label: 'Exam & Question Analytics', icon: BarChart3 },
           ].map((t) => {
@@ -1235,6 +1249,231 @@ export default function AdminExaminationsPage() {
             )}
           </div>
         )}
+
+        {/* TAB: LOCK & UNLOCK CONTROL + COMPREHENSIVE PDF EXAM GENERATION */}
+        {activeTab === 'lockControl' && (() => {
+          const filteredLockExams = (data.examinations || []).filter((ex: any) => {
+            if (lockTrackFilter && (ex.studyTrack || 'ALL') !== lockTrackFilter) return false;
+            if (lockTypeFilter && ex.examType !== lockTypeFilter) return false;
+            return true;
+          });
+          const lockedCount = filteredLockExams.filter((ex: any) => ex.isLocked).length;
+          const unlockedCount = filteredLockExams.length - lockedCount;
+          const filteredIds = filteredLockExams.map((ex: any) => ex.id);
+
+          return (
+            <div className="space-y-6">
+              {/* Generate Comprehensive Exam from PDFs (Modules 1-13) */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-700" />
+                      Generate Comprehensive Exam (Modules 1–13) from PDFs
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Automatically generates Section A (Objective MCQ) &amp; Section B (Written / Essay) from uploaded PDF topics.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <select
+                    value={genForm.courseId}
+                    onChange={(e) => setGenForm({ ...genForm, courseId: e.target.value })}
+                    className="border border-slate-200 rounded-xl px-3 py-2 bg-white"
+                  >
+                    <option value="">Select Course</option>
+                    {(data.courses || []).map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} — {c.title}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={genForm.studyTrack}
+                    onChange={(e) => setGenForm({ ...genForm, studyTrack: e.target.value })}
+                    className="border border-slate-200 rounded-xl px-3 py-2 bg-white"
+                  >
+                    <option value="6_MONTH">6-Month Intensive Track</option>
+                    <option value="12_MONTH">12-Month Standard Track</option>
+                  </select>
+                  <select
+                    value={genForm.examType}
+                    onChange={(e) => setGenForm({ ...genForm, examType: e.target.value })}
+                    className="border border-slate-200 rounded-xl px-3 py-2 bg-white"
+                  >
+                    <option value="FINAL">Final Examination (Modules 1–13)</option>
+                    <option value="END_OF_SEMESTER">End-of-Semester Examination</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={busy || !genForm.courseId}
+                    onClick={() =>
+                      postExamAction({
+                        action: 'generate_from_pdf',
+                        courseId: genForm.courseId,
+                        studyTrack: genForm.studyTrack,
+                        examType: genForm.examType,
+                        title: genForm.title || undefined,
+                        isLocked: true,
+                        includeAllProgrammeModules: true,
+                      })
+                    }
+                    className="px-4 py-2 rounded-xl bg-[#073832] hover:bg-emerald-900 disabled:opacity-50 text-white font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Exam (Locked)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Lock / Unlock Controls & Filters */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="px-3 py-1.5 rounded-xl bg-slate-100 font-bold text-slate-700">
+                      Total: {filteredLockExams.length}
+                    </span>
+                    <span className="px-3 py-1.5 rounded-xl bg-rose-50 font-bold text-rose-800 border border-rose-200">
+                      Locked: {lockedCount}
+                    </span>
+                    <span className="px-3 py-1.5 rounded-xl bg-emerald-50 font-bold text-emerald-800 border border-emerald-200">
+                      Unlocked: {unlockedCount}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <select
+                      value={lockTrackFilter}
+                      onChange={(e) => setLockTrackFilter(e.target.value)}
+                      className="border border-slate-200 rounded-xl px-3 py-1.5 bg-white"
+                    >
+                      <option value="">All Tracks</option>
+                      <option value="6_MONTH">6-Month Track</option>
+                      <option value="12_MONTH">12-Month Track</option>
+                    </select>
+                    <select
+                      value={lockTypeFilter}
+                      onChange={(e) => setLockTypeFilter(e.target.value)}
+                      className="border border-slate-200 rounded-xl px-3 py-1.5 bg-white"
+                    >
+                      <option value="">All Exam Types</option>
+                      <option value="FINAL">Final Examination</option>
+                      <option value="END_OF_SEMESTER">End-of-Semester</option>
+                      <option value="MID_TERM">Mid-Term</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={busy || filteredIds.length === 0}
+                      onClick={() => postExamAction({ action: 'bulk_unlock', examIds: filteredIds })}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold flex items-center gap-1"
+                    >
+                      <Unlock className="w-3.5 h-3.5" /> Unlock Filtered
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || filteredIds.length === 0}
+                      onClick={() => postExamAction({ action: 'bulk_lock', examIds: filteredIds })}
+                      className="px-3 py-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white font-bold flex items-center gap-1"
+                    >
+                      <Lock className="w-3.5 h-3.5" /> Lock Filtered
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
+                      <tr>
+                        <th className="py-2.5 px-3">Examination</th>
+                        <th className="py-2.5 px-3">Track</th>
+                        <th className="py-2.5 px-3">Sections</th>
+                        <th className="py-2.5 px-3">Schedule</th>
+                        <th className="py-2.5 px-3">Lock Status</th>
+                        <th className="py-2.5 px-3 text-right">Control</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredLockExams.map((ex: any) => (
+                        <tr key={ex.id} className="hover:bg-slate-50/70">
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-900">{ex.title}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {ex.course?.code} · {String(ex.examType || '').replace(/_/g, ' ')}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 font-bold text-[10px]">
+                              {ex.studyTrack === '6_MONTH'
+                                ? '6-Month'
+                                : ex.studyTrack === '12_MONTH'
+                                ? '12-Month'
+                                : 'All Tracks'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-[11px] text-slate-600">
+                            {(ex.sections || []).length > 0
+                              ? ex.sections.map((s: any) => `${s.sectionType || 'OBJECTIVE'} (${s.questionCount})`).join(' + ')
+                              : `${ex.questions?.length || 0} Qs`}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600">
+                            {ex.scheduledDate} · {ex.scheduledTime}
+                          </td>
+                          <td className="py-3 px-3">
+                            {ex.isLocked ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                <Lock className="w-3 h-3" /> Locked
+                              </span>
+                            ) : (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                  <Unlock className="w-3 h-3" /> Unlocked
+                                </span>
+                                {ex.unlockedByName && (
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    by {ex.unlockedByName}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            {ex.isLocked ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => postExamAction({ action: 'unlock_exam', examId: ex.id })}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold inline-flex items-center gap-1"
+                              >
+                                <Unlock className="w-3.5 h-3.5" /> Unlock Exam
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => postExamAction({ action: 'lock_exam', examId: ex.id })}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold inline-flex items-center gap-1"
+                              >
+                                <Lock className="w-3.5 h-3.5" /> Lock Exam
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredLockExams.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400">
+                            No examinations match the selected track/type filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </main>
 
       {/* CREATE EXAM MODAL */}

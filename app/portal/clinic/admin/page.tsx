@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ClinicShell, { ClinicUser } from '@/components/ClinicShell';
 import {
@@ -12,6 +13,7 @@ import {
   BedDouble,
   CheckCircle2,
   X,
+  ArrowUpRight,
 } from 'lucide-react';
 
 type AdminTab = 'settings' | 'staff' | 'departments' | 'catalogues' | 'wards';
@@ -138,7 +140,14 @@ export default function ClinicAdminPage() {
               Independent Clinic Super Admin workspace — settings, staff roles, departments, catalogues, and modules.
             </p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/portal/clinic"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 shadow-sm transition"
+            >
+              Open Full Clinic Operations (/portal/clinic)
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
             {(
               [
                 { key: 'settings', label: 'Clinic Settings', icon: Settings },
@@ -310,6 +319,16 @@ export default function ClinicAdminPage() {
                 <option value="CASHIER">Cashier</option>
                 <option value="RECORDS_OFFICER">Records Officer</option>
               </select>
+              <select
+                value={staffForm.departmentId}
+                onChange={(e) => setStaffForm({ ...staffForm, departmentId: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs"
+              >
+                <option value="">Assign Department (Optional)</option>
+                {(catalog?.departments || []).map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
               <input
                 placeholder="Specialty / Designation"
                 value={staffForm.specialty}
@@ -320,10 +339,10 @@ export default function ClinicAdminPage() {
                 type="button"
                 disabled={busy || !staffForm.name || !staffForm.email}
                 onClick={async () => {
-                  const ok = await postAction('/api/clinic/catalog', { action: 'create_staff', ...staffForm }, 'Clinic staff added.');
+                  const ok = await postAction('/api/clinic/catalog', { entity: 'staff', ...staffForm }, 'Clinic staff added.');
                   if (ok) setStaffForm({ name: '', email: '', password: '', clinicRole: 'DOCTOR', departmentId: '', specialty: '', licenseNumber: '', phone: '+233' });
                 }}
-                className="w-full py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700"
+                className="w-full py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50"
               >
                 Create Staff Account
               </button>
@@ -331,16 +350,21 @@ export default function ClinicAdminPage() {
 
             <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5">
               <h2 className="text-sm font-bold text-slate-900 mb-3">Clinic Workforce ({catalog?.staff?.length || 0})</h2>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
                 {(catalog?.staff || []).map((s: any) => (
                   <div key={s.id} className="p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                     <div>
                       <p className="font-bold text-slate-900">{s.user?.name}</p>
-                      <p className="text-slate-500">{s.user?.email} • {s.clinicRole} {s.specialty ? `• ${s.specialty}` : ''}</p>
+                      <p className="text-slate-500">
+                        {s.user?.email} • {s.clinicRole}
+                        {s.department?.name ? ` • ${s.department.name}` : ''}
+                        {s.specialty ? ` • ${s.specialty}` : ''}
+                      </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => postAction('/api/clinic/catalog', { action: 'toggle_staff', staffId: s.id, isActive: !s.isActive }, 'Staff status updated.', 'PATCH')}
+                      disabled={busy}
+                      onClick={() => postAction('/api/clinic/catalog', { entity: 'staff', id: s.id, isActive: !s.isActive }, 'Staff status updated.', 'PATCH')}
                       className={`px-2.5 py-1 rounded-lg font-semibold ${
                         s.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
                       }`}
@@ -365,12 +389,15 @@ export default function ClinicAdminPage() {
               <button
                 type="button"
                 disabled={busy || !deptForm.name}
-                onClick={() => postAction('/api/clinic/catalog', { action: 'create_department', ...deptForm }, 'Department added.')}
-                className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold"
+                onClick={async () => {
+                  const ok = await postAction('/api/clinic/catalog', { entity: 'department', ...deptForm }, 'Department added.');
+                  if (ok) setDeptForm({ name: '', headDoctor: '', room: '', description: '' });
+                }}
+                className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold disabled:opacity-50"
               >
                 + Add Department
               </button>
-              <div className="space-y-1.5 pt-2">
+              <div className="space-y-1.5 pt-2 max-h-72 overflow-y-auto">
                 {(catalog?.departments || []).map((d: any) => (
                   <div key={d.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between">
                     <span className="font-bold">{d.name}</span>
@@ -390,15 +417,21 @@ export default function ClinicAdminPage() {
               <button
                 type="button"
                 disabled={busy || !serviceForm.title}
-                onClick={() => postAction('/api/clinic/catalog', { action: 'create_service', ...serviceForm }, 'Service added.')}
-                className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold"
+                onClick={async () => {
+                  const ok = await postAction('/api/clinic/catalog', { entity: 'service', ...serviceForm }, 'Service added.');
+                  if (ok) setServiceForm({ title: '', category: 'Consultation', feeGHS: '150', duration: '30 mins', departmentId: '', description: '' });
+                }}
+                className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50"
               >
                 + Add Service
               </button>
-              <div className="space-y-1.5 pt-2">
+              <div className="space-y-1.5 pt-2 max-h-72 overflow-y-auto">
                 {(catalog?.services || []).map((sv: any) => (
                   <div key={sv.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between">
-                    <span className="font-bold">{sv.title}</span>
+                    <div>
+                      <span className="font-bold">{sv.title}</span>
+                      <span className="text-slate-500 ml-2">({sv.category})</span>
+                    </div>
                     <span className="font-semibold text-teal-700">GH₵{Number(sv.feeGHS).toFixed(2)}</span>
                   </div>
                 ))}
@@ -410,40 +443,56 @@ export default function ClinicAdminPage() {
         {tab === 'catalogues' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-slate-900">Diagnosis Catalogue (ICD-10 / Clinic Codes)</h2>
+              <h2 className="text-sm font-bold text-slate-900">
+                Diagnosis Catalogue ({catalog?.diagnosisCatalog?.length || 0})
+              </h2>
               <div className="flex gap-2">
                 <input placeholder="Code (e.g. B54)" value={diagForm.code} onChange={(e) => setDiagForm({ ...diagForm, code: e.target.value })} className="w-28 px-3 py-2 rounded-lg border border-slate-200 text-xs" />
                 <input placeholder="Diagnosis Name" value={diagForm.name} onChange={(e) => setDiagForm({ ...diagForm, name: e.target.value })} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs" />
-                <button type="button" onClick={() => postAction('/api/clinic/catalog', { action: 'create_diagnosis', ...diagForm }, 'Diagnosis code added.')} className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold">Add</button>
+                <button
+                  type="button"
+                  disabled={busy || !diagForm.code || !diagForm.name}
+                  onClick={async () => {
+                    const ok = await postAction('/api/clinic/catalog', { entity: 'diagnosisCatalog', ...diagForm }, 'Diagnosis code added.');
+                    if (ok) setDiagForm({ code: '', name: '', category: 'General' });
+                  }}
+                  className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold disabled:opacity-50"
+                >
+                  Add
+                </button>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-1">
-                {(catalog?.diagnoses || []).map((d: any) => (
-                  <div key={d.id} className="p-2 rounded bg-slate-50 text-xs flex justify-between">
+              <div className="max-h-56 overflow-y-auto space-y-1">
+                {(catalog?.diagnosisCatalog || []).map((d: any) => (
+                  <div key={d.id} className="p-2 rounded bg-slate-50 border border-slate-100 text-xs flex justify-between">
                     <span><strong>{d.code}</strong> — {d.name}</span>
+                    <span className="text-slate-400">{d.category}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-slate-900">Laboratory & Imaging Catalogues</h2>
-              <div className="grid grid-cols-4 gap-2">
+              <h2 className="text-sm font-bold text-slate-900">Laboratory, Imaging & Procedure Catalogues</h2>
+              <div className="grid grid-cols-5 gap-2">
                 <input placeholder="Lab Code" value={labTestForm.code} onChange={(e) => setLabTestForm({ ...labTestForm, code: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
                 <input placeholder="Test Name" value={labTestForm.name} onChange={(e) => setLabTestForm({ ...labTestForm, name: e.target.value })} className="col-span-2 px-2 py-2 rounded-lg border border-slate-200 text-xs" />
-                <button type="button" onClick={() => postAction('/api/clinic/lab', { action: 'create_test', ...labTestForm }, 'Lab test added.')} className="px-2 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold">Add Lab</button>
+                <input placeholder="GH₵" type="number" value={labTestForm.priceGHS} onChange={(e) => setLabTestForm({ ...labTestForm, priceGHS: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
+                <button type="button" disabled={busy || !labTestForm.code || !labTestForm.name} onClick={() => postAction('/api/clinic/lab', { action: 'create_test', ...labTestForm }, 'Lab test added.')} className="px-2 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold disabled:opacity-50">Add Lab</button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <input placeholder="Img Code" value={imagingForm.code} onChange={(e) => setImagingForm({ ...imagingForm, code: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
                 <input placeholder="Imaging Name" value={imagingForm.name} onChange={(e) => setImagingForm({ ...imagingForm, name: e.target.value })} className="col-span-2 px-2 py-2 rounded-lg border border-slate-200 text-xs" />
-                <button type="button" onClick={() => postAction('/api/clinic/imaging', { action: 'create_catalog', ...imagingForm }, 'Imaging test added.')} className="px-2 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold">Add Img</button>
+                <input placeholder="GH₵" type="number" value={imagingForm.priceGHS} onChange={(e) => setImagingForm({ ...imagingForm, priceGHS: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
+                <button type="button" disabled={busy || !imagingForm.code || !imagingForm.name} onClick={() => postAction('/api/clinic/imaging', { action: 'create_catalog', ...imagingForm }, 'Imaging test added.')} className="px-2 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50">Add Img</button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <input placeholder="Proc Code" value={procForm.code} onChange={(e) => setProcForm({ ...procForm, code: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
                 <input placeholder="Procedure Name" value={procForm.name} onChange={(e) => setProcForm({ ...procForm, name: e.target.value })} className="col-span-2 px-2 py-2 rounded-lg border border-slate-200 text-xs" />
-                <button type="button" onClick={() => postAction('/api/clinic/procedures', { action: 'create_catalog', ...procForm }, 'Procedure added.')} className="px-2 py-2 rounded-lg bg-slate-700 text-white text-xs font-semibold">Add Proc</button>
+                <input placeholder="GH₵" type="number" value={procForm.priceGHS} onChange={(e) => setProcForm({ ...procForm, priceGHS: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs" />
+                <button type="button" disabled={busy || !procForm.code || !procForm.name} onClick={() => postAction('/api/clinic/procedures', { action: 'create_catalog', ...procForm }, 'Procedure added.')} className="px-2 py-2 rounded-lg bg-slate-700 text-white text-xs font-semibold disabled:opacity-50">Add Proc</button>
               </div>
               <p className="text-[11px] text-slate-500">
-                Lab tests: {catalog?.labTests?.length || 0} • Imaging: {imagingCatalog.length} • Procedures: {procedureCatalog.length}
+                Lab tests: {catalog?.labCatalog?.length || 0} • Imaging: {imagingCatalog.length} • Procedures: {procedureCatalog.length}
               </p>
             </div>
 
@@ -454,8 +503,18 @@ export default function ClinicAdminPage() {
               <div className="flex flex-wrap gap-2">
                 <input placeholder="Code (e.g. GLICO)" value={insForm.code} onChange={(e) => setInsForm({ ...insForm, code: e.target.value })} className="px-3 py-2 rounded-lg border border-slate-200 text-xs" />
                 <input placeholder="Provider Name" value={insForm.name} onChange={(e) => setInsForm({ ...insForm, name: e.target.value })} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs" />
-                <button type="button" onClick={() => postAction('/api/clinic/insurance', { action: 'create_provider', ...insForm }, 'Insurance provider added.')} className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold">+ Add Provider</button>
+                <button type="button" disabled={busy || !insForm.code || !insForm.name} onClick={() => postAction('/api/clinic/insurance', { action: 'create_provider', ...insForm }, 'Insurance provider added.')} className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold disabled:opacity-50">+ Add Provider</button>
               </div>
+              {insuranceProviders.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  {insuranceProviders.map((p: any) => (
+                    <div key={p.id} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between">
+                      <span className="font-bold">{p.code} — {p.name}</span>
+                      <span className="text-slate-500">{p.providerType}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

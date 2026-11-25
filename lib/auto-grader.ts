@@ -29,6 +29,226 @@ function normalizeText(value: string, caseSensitive: boolean): string {
   return caseSensitive ? trimmed : trimmed.toLowerCase();
 }
 
+const CLINICAL_SYNONYM_GROUPS: string[][] = [
+  ['hand hygiene', 'handwashing', 'hand washing', 'sanitizing', 'sanitizer', 'alcohol rub', 'wash hands', 'soap and water'],
+  ['blood pressure', 'bp', 'hypertension', 'hypotension', 'systolic', 'diastolic', 'sphygmomanometer'],
+  ['spo2', 'oxygen saturation', 'pulse oximetry', 'oximeter', 'oxygen level', 'o2 sat'],
+  ['vital signs', 'vitals', 'temperature', 'pulse', 'respiration', 'respiratory rate', 'heart rate'],
+  ['infection control', 'infection prevention', 'ipc', 'asepsis', 'aseptic', 'sterile', 'sterilization', 'disinfection', 'standard precautions'],
+  ['ppe', 'personal protective equipment', 'protective gear', 'gloves', 'gown', 'face mask', 'apron', 'goggles'],
+  ['confidentiality', 'privacy', 'patient rights', 'informed consent', 'consent', 'autonomy', 'dignity', 'respect'],
+  ['communication', 'active listening', 'empathy', 'rapport', 'handover', 'documentation', 'charting', 'reporting'],
+  ['six rights', '6 rights', 'right dose', 'right patient', 'right medication', 'right route', 'right time', 'adverse reaction', 'side effect', 'pharmacology'],
+  ['chronic', 'diabetes', 'stroke', 'dementia', 'palliative', 'end of life', 'pain management', 'comfort care', 'hospice'],
+  ['nutrition', 'hydration', 'fluid balance', 'dehydration', 'dysphagia', 'aspiration', 'balanced diet', 'feeding'],
+  ['mental health', 'depression', 'anxiety', 'psychosocial', 'de-escalation', 'emotional support', 'well-being', 'wellness'],
+  ['activities of daily living', 'adls', 'bed bath', 'personal hygiene', 'safe transfer', 'lifting', 'ergonomics', 'pressure sore', 'pressure ulcer', 'mobility'],
+  ['burnout', 'self-care', 'stress management', 'collaboration', 'teamwork', 'interprofessional'],
+  ['patient safety', 'fall prevention', 'risk assessment', 'hazard', 'emergency', 'first aid', 'cpr'],
+];
+
+const STOP_CONCEPT_WORDS = new Set([
+  'about', 'above', 'after', 'again', 'against', 'among', 'because', 'before', 'being',
+  'below', 'between', 'clinical', 'consider', 'could', 'course', 'describe', 'during',
+  'ensure', 'every', 'explain', 'first', 'following', 'health', 'healthcare', 'important',
+  'including', 'module', 'patient', 'patients', 'practice', 'principles', 'provide',
+  'should', 'standard', 'their', 'there', 'these', 'those', 'through', 'under', 'using',
+  'where', 'which', 'while', 'within', 'without', 'would',
+]);
+
+function stemWord(word: string): string {
+  const w = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (w.length <= 4) return w;
+  return w
+    .replace(/(?:ation|ition|ment|ness|ance|ence|able|ible|ally|ing|ies|ied|ed|es|ly|s)$/, '')
+    || w;
+}
+
+function tokenizeStemmed(text: string): Set<string> {
+  const words = text.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+  const stems = new Set<string>();
+  for (const w of words) {
+    if (!STOP_CONCEPT_WORDS.has(w)) {
+      stems.add(w);
+      stems.add(stemWord(w));
+    }
+  }
+  return stems;
+}
+
+function hasNegationNear(textLower: string, phraseLower: string): boolean {
+  const idx = textLower.indexOf(phraseLower);
+  if (idx === -1) return false;
+  const prefix = textLower.slice(Math.max(0, idx - 28), idx);
+  return /\b(?:not|never|no|without|avoid|avoiding|don't|do not|should not|must not)\s*$/i.test(prefix);
+}
+
+function expandConceptSynonyms(concept: string): string[] {
+  const lower = concept.toLowerCase().trim();
+  const variants = new Set<string>([lower]);
+  for (const group of CLINICAL_SYNONYM_GROUPS) {
+    if (group.some((g) => lower.includes(g) || g.includes(lower))) {
+      for (const g of group) variants.add(g);
+    }
+  }
+  return Array.from(variants);
+}
+
+export function gradeSubjectiveDeterministically(params: {
+  questionText: string;
+  questionType: string;
+  maxMarks: number;
+  expectedAnswer?: string | null;
+  rubricJson?: string | null;
+  requiredConceptsJson?: string | null;
+  criticalErrorsJson?: string | null;
+  studentAnswer: string;
+}): {
+  status: 'COMPLETED';
+  awardedMarks: number;
+  maxMarks: number;
+  conceptsCorrect: string[];
+  conceptsMissing: string[];
+  incorrectClaims: string[];
+  explanation: string;
+  feedback: string;
+  retryCount: number;
+} {
+  const maxMarks = Math.max(0, Number(params.maxMarks) || 0);
+  const submitted = (params.studentAnswer ?? '').trim();
+  const submittedLower = submitted.toLowerCase();
+  const submittedStems = tokenizeStemmed(submitted);
+
+  const requiredConcepts = safeParseJson<string[]>(params.requiredConceptsJson, []);
+  const rubricItems = safeParseJson<Array<{ criterion?: string; maxMarks?: number; description?: string }>>(
+    params.rubricJson,
+    []
+  );
+  const criticalErrors = safeParseJson<string[]>(params.criticalErrorsJson, []);
+
+  // Build target concept list from requiredConcepts, rubric criteria, or expectedAnswer key terms
+  const targetConcepts: string[] = [...requiredConcepts];
+  if (targetConcepts.length === 0 && rubricItems.length > 0) {
+    for (const r of rubricItems) {
+      if (r.criterion) targetConcepts.push(r.criterion);
+    }
+  }
+  if (targetConcepts.length === 0 && params.expectedAnswer) {
+    const matchedWords: string[] = params.expectedAnswer.match(/\b[A-Za-z]{5,18}\b/g) || [];
+    const expectedWords = matchedWords.filter((w: string) => !STOP_CONCEPT_WORDS.has(w.toLowerCase()));
+    for (const w of Array.from(new Set(expectedWords)).slice(0, 6)) {
+      targetConcepts.push(w);
+    }
+  }
+
+  const conceptsCorrect: string[] = [];
+  const conceptsMissing: string[] = [];
+  const incorrectClaims: string[] = [];
+
+  for (const concept of targetConcepts) {
+    const variants = expandConceptSynonyms(concept);
+    const expectedNegated = params.expectedAnswer
+      ? hasNegationNear(params.expectedAnswer.toLowerCase(), concept.toLowerCase())
+      : false;
+
+    let matched = false;
+    let negatedMismatch = false;
+
+    for (const variant of variants) {
+      if (submittedLower.includes(variant)) {
+        const subNegated = hasNegationNear(submittedLower, variant);
+        if (subNegated !== expectedNegated) {
+          negatedMismatch = true;
+        } else {
+          matched = true;
+          break;
+        }
+      } else {
+        const variantStems = Array.from(tokenizeStemmed(variant));
+        if (
+          variantStems.length > 0 &&
+          variantStems.filter((st) => submittedStems.has(st)).length >= Math.ceil(variantStems.length * 0.6)
+        ) {
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    if (matched) {
+      conceptsCorrect.push(concept);
+    } else {
+      conceptsMissing.push(concept);
+      if (negatedMismatch) {
+        incorrectClaims.push(`Opposite/negated statement detected for "${concept}".`);
+      }
+    }
+  }
+
+  // Check critical errors
+  for (const err of criticalErrors) {
+    if (err && submittedLower.includes(err.toLowerCase()) && !hasNegationNear(submittedLower, err.toLowerCase())) {
+      incorrectClaims.push(`Critical error mentioned: ${err}`);
+    }
+  }
+
+  // Score calculation: concept coverage (75%) + expected-answer semantic overlap & response depth (25%)
+  const conceptRatio =
+    targetConcepts.length > 0 ? conceptsCorrect.length / targetConcepts.length : 0.6;
+
+  const expectedStems = params.expectedAnswer ? tokenizeStemmed(params.expectedAnswer) : new Set<string>();
+  let overlapCount = 0;
+  for (const st of expectedStems) {
+    if (submittedStems.has(st)) overlapCount++;
+  }
+  const overlapRatio = expectedStems.size > 0 ? Math.min(1, overlapCount / Math.max(4, expectedStems.size * 0.45)) : 0.5;
+
+  const wordCount = submitted.split(/\s+/).filter(Boolean).length;
+  const depthFactor = wordCount >= 35 ? 1 : wordCount >= 18 ? 0.85 : wordCount >= 8 ? 0.65 : 0.35;
+
+  const penalty = Math.min(0.3, incorrectClaims.length * 0.15);
+  const rawFraction = Math.max(
+    0,
+    Math.min(1, conceptRatio * 0.72 + overlapRatio * 0.18 + depthFactor * 0.1 - penalty)
+  );
+  const awardedMarks = Math.round(rawFraction * maxMarks * 100) / 100;
+
+  const rubricNotes =
+    rubricItems.length > 0
+      ? rubricItems
+          .map((r) => `${r.criterion || 'Criterion'} (${r.maxMarks ?? '-'}m)`)
+          .join('; ')
+      : '';
+
+  const feedbackParts: string[] = [];
+  if (conceptsCorrect.length > 0) {
+    feedbackParts.push(`Recognized concepts (${conceptsCorrect.length}/${Math.max(1, targetConcepts.length)}): ${conceptsCorrect.join(', ')}.`);
+  }
+  if (conceptsMissing.length > 0) {
+    feedbackParts.push(`Missing/underdeveloped concepts: ${conceptsMissing.join(', ')}.`);
+  }
+  if (incorrectClaims.length > 0) {
+    feedbackParts.push(`Caution: ${incorrectClaims.join(' ')}`);
+  }
+  if (rubricNotes) {
+    feedbackParts.push(`Rubric criteria: ${rubricNotes}.`);
+  }
+
+  return {
+    status: 'COMPLETED',
+    awardedMarks,
+    maxMarks,
+    conceptsCorrect,
+    conceptsMissing,
+    incorrectClaims,
+    explanation: params.expectedAnswer || 'Evaluated deterministically using clinical concept equivalence and rubric matching.',
+    feedback:
+      feedbackParts.join(' ') ||
+      `Scored ${awardedMarks}/${maxMarks} based on clinical concept and rubric matching.`,
+    retryCount: 0,
+  };
+}
+
 export function gradeObjectiveAnswer(
   params: {
     questionType: string;
@@ -318,18 +538,16 @@ export async function evaluateSubjectiveWithAI(params: {
   const maxRetries = params.maxRetries ?? 2;
 
   if (!provider) {
-    return {
-      status: 'FAILED',
-      awardedMarks: 0,
+    return gradeSubjectiveDeterministically({
+      questionText: params.questionText,
+      questionType: params.questionType,
       maxMarks,
-      conceptsCorrect: [],
-      conceptsMissing: [],
-      incorrectClaims: [],
-      explanation: params.expectedAnswer || '',
-      feedback: 'Automated AI evaluation unavailable (no active AI provider configured). Pending retry.',
-      retryCount: 0,
-      errorMessage: 'No active AI provider configured.',
-    };
+      expectedAnswer: params.expectedAnswer,
+      rubricJson: params.rubricJson,
+      requiredConceptsJson: params.requiredConceptsJson,
+      criticalErrorsJson: params.criticalErrorsJson,
+      studentAnswer: submitted,
+    });
   }
 
   const systemPrompt = `You are a strict, fair Ghana Nursing & Midwifery examiner.
@@ -387,18 +605,16 @@ ${submitted.slice(0, 4000)}`;
     lastError = res.error || 'Malformed AI grading response.';
   }
 
-  return {
-    status: 'FAILED',
-    awardedMarks: 0,
+  return gradeSubjectiveDeterministically({
+    questionText: params.questionText,
+    questionType: params.questionType,
     maxMarks,
-    conceptsCorrect: [],
-    conceptsMissing: [],
-    incorrectClaims: [],
-    explanation: params.expectedAnswer || '',
-    feedback: 'Automated evaluation failed after retries. Pending retry or verification.',
-    retryCount: maxRetries,
-    errorMessage: lastError,
-  };
+    expectedAnswer: params.expectedAnswer,
+    rubricJson: params.rubricJson,
+    requiredConceptsJson: params.requiredConceptsJson,
+    criticalErrorsJson: params.criticalErrorsJson,
+    studentAnswer: submitted,
+  });
 }
 
 export async function extractSubmissionText(params: {

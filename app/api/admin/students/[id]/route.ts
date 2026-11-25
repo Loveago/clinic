@@ -75,6 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       academicYear,
       programmeId,
       cohortId,
+      studyTrack,
       dateOfBirth,
       gender,
       nationality,
@@ -165,6 +166,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (academicYear !== undefined) studentUpdateData.academicYear = academicYear;
     if (programmeId !== undefined) studentUpdateData.programmeId = programmeId;
     if (cohortId !== undefined) studentUpdateData.cohortId = cohortId || null;
+    if (studyTrack !== undefined) studentUpdateData.studyTrack = studyTrack === '6_MONTH' ? '6_MONTH' : '12_MONTH';
     if (dateOfBirth !== undefined) studentUpdateData.dateOfBirth = dateOfBirth;
     if (gender !== undefined) studentUpdateData.gender = gender;
     if (nationality !== undefined) studentUpdateData.nationality = nationality;

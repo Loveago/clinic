@@ -25,16 +25,20 @@ function formatExamQuestionsForAttempt(
 ): { sections: any[]; questions: any[] } {
   const questionById = new Map<string, any>(exam.questions.map((q: any) => [q.id, q]));
 
+  const sectionMap = new Map<string, any>((exam.sections || []).map((s: any) => [s.id, s]));
+
   if (assignedPaper && assignedPaper.questions.length > 0) {
     const questions = assignedPaper.questions
       .map((pq) => {
         const q = questionById.get(pq.questionId);
         if (!q) return null;
         const baseOptions = safeJsonParse<unknown[]>(q.optionsJson, []);
+        const sec = pq.sectionId ? sectionMap.get(pq.sectionId) : null;
         return {
           id: q.id,
           sectionId: pq.sectionId,
           sectionTitle: pq.sectionTitle,
+          sectionType: pq.sectionType || sec?.sectionType || (['ESSAY', 'SHORT_ANSWER', 'SCENARIO'].includes(String(q.questionType || '').toUpperCase()) ? 'WRITTEN' : 'OBJECTIVE'),
           orderIndex: pq.orderIndex,
           questionType: q.questionType || 'MCQ',
           text: q.text,
@@ -44,26 +48,39 @@ function formatExamQuestionsForAttempt(
       })
       .filter(Boolean);
 
+    const sections = (assignedPaper.sections || []).map((s: any) => {
+      const dbSec = s.id ? sectionMap.get(s.id) : null;
+      return {
+        ...s,
+        sectionType: s.sectionType || dbSec?.sectionType || 'OBJECTIVE',
+      };
+    });
+
     return {
-      sections: assignedPaper.sections || [],
+      sections,
       questions,
     };
   }
 
-  const questions = exam.questions.map((q: any) => ({
-    id: q.id,
-    sectionId: q.sectionId || null,
-    sectionTitle: null,
-    orderIndex: q.orderIndex,
-    questionType: q.questionType || 'MCQ',
-    text: q.text,
-    options: safeJsonParse<unknown[]>(q.optionsJson, []),
-    marks: q.marks,
-  }));
+  const questions = exam.questions.map((q: any) => {
+    const sec = q.sectionId ? sectionMap.get(q.sectionId) : null;
+    return {
+      id: q.id,
+      sectionId: q.sectionId || null,
+      sectionTitle: sec?.title || null,
+      sectionType: sec?.sectionType || (['ESSAY', 'SHORT_ANSWER', 'SCENARIO'].includes(String(q.questionType || '').toUpperCase()) ? 'WRITTEN' : 'OBJECTIVE'),
+      orderIndex: q.orderIndex,
+      questionType: q.questionType || 'MCQ',
+      text: q.text,
+      options: safeJsonParse<unknown[]>(q.optionsJson, []),
+      marks: q.marks,
+    };
+  });
 
   const sections = (exam.sections || []).map((s: any) => ({
     id: s.id,
     title: s.title,
+    sectionType: s.sectionType || 'OBJECTIVE',
     instructions: s.instructions,
     marksAllocated: s.marksAllocated,
     questionIds: questions.filter((q: any) => q.sectionId === s.id).map((q: any) => q.id),
@@ -330,6 +347,16 @@ export async function POST(
         sections,
         questions,
       });
+    }
+
+    if (exam.isLocked) {
+      return NextResponse.json(
+        {
+          error: 'This examination is currently locked by the Administrator.',
+          isLocked: true,
+        },
+        { status: 403 }
+      );
     }
 
     const eligibility = await checkExamEligibility({ student, exam, attempts });

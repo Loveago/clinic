@@ -387,9 +387,22 @@ export default function CBTExamTakingPage() {
                 {reportData.questionReview.map((qr: any, idx: number) => (
                   <div key={qr.id || idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-slate-900">
-                        Q{idx + 1}. {qr.text}
-                      </p>
+                      <div>
+                        {qr.sectionType && (
+                          <span
+                            className={`inline-block mb-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              qr.sectionType === 'WRITTEN'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : 'bg-teal-100 text-teal-800'
+                            }`}
+                          >
+                            {qr.sectionType === 'WRITTEN' ? 'Written / Essay' : 'Objective'}
+                          </span>
+                        )}
+                        <p className="font-bold text-slate-900">
+                          Q{idx + 1}. {qr.text}
+                        </p>
+                      </div>
                       <span className="px-2 py-0.5 rounded-full font-bold bg-white border border-slate-200 shrink-0">
                         {qr.marksAwarded ?? 0} / {qr.maxMarks}
                       </span>
@@ -499,6 +512,15 @@ export default function CBTExamTakingPage() {
             </div>
           )}
 
+          {exam?.isLocked && (
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs text-rose-800 flex items-center gap-2">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>
+                <strong>Locked by Administrator:</strong> This examination has not been unlocked for candidates yet. Please wait for your invigilator or admin to unlock it.
+              </span>
+            </div>
+          )}
+
           {!eligible && Array.isArray(eligibility?.reasons) && eligibility.reasons.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 space-y-1">
               <p className="font-bold flex items-center gap-1.5">
@@ -522,7 +544,7 @@ export default function CBTExamTakingPage() {
             </Link>
             <button
               onClick={handleStartExam}
-              disabled={!eligible || starting}
+              disabled={!eligible || starting || Boolean(exam?.isLocked)}
               className="flex-1 py-3 px-5 bg-[#073832] hover:bg-emerald-900 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2"
             >
               {starting ? (
@@ -632,8 +654,14 @@ export default function CBTExamTakingPage() {
                     Question {currentIdx + 1} of {questions.length}
                   </span>
                   {currentQ.sectionTitle && (
-                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                      {currentQ.sectionTitle}
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                        currentQ.sectionType === 'WRITTEN'
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : 'bg-teal-100 text-teal-800'
+                      }`}
+                    >
+                      {currentQ.sectionTitle} ({currentQ.sectionType === 'WRITTEN' ? 'Written / Essay' : 'Objective'})
                     </span>
                   )}
                   <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold">
@@ -699,13 +727,26 @@ export default function CBTExamTakingPage() {
                   className="w-full p-4 rounded-2xl border border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
                 />
               ) : (
-                <textarea
-                  rows={6}
-                  value={answers[currentQ.id] || ''}
-                  onChange={(e) => updateAnswer(currentQ.id, e.target.value)}
-                  placeholder="Write your clinical/analytical response clearly..."
-                  className="w-full p-4 rounded-2xl border border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none text-sm leading-relaxed"
-                />
+                <div className="space-y-2">
+                  <textarea
+                    rows={7}
+                    value={answers[currentQ.id] || ''}
+                    onChange={(e) => updateAnswer(currentQ.id, e.target.value)}
+                    placeholder="Write your clinical / caregiving response clearly. Explain key steps, rationale, and safety precautions..."
+                    className="w-full p-4 rounded-2xl border border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none text-sm leading-relaxed"
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                    <span>
+                      Written / Essay response — explain key concepts clearly in your own words.
+                    </span>
+                    <span className="font-mono font-bold text-slate-700">
+                      {String(answers[currentQ.id] || '').trim()
+                        ? String(answers[currentQ.id] || '').trim().split(/\s+/).length
+                        : 0}{' '}
+                      words
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           ) : (
@@ -754,23 +795,47 @@ export default function CBTExamTakingPage() {
             </p>
           </div>
 
-          {sections.length > 1 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase text-slate-400">Sections</p>
-              <div className="flex flex-wrap gap-1.5">
-                {sections.map((s: any, sIdx: number) => (
-                  <button
-                    key={s.id || sIdx}
-                    onClick={() => {
-                      const firstQId = s.questionIds?.[0];
-                      const idx = questions.findIndex((q) => q.id === firstQId);
-                      if (idx >= 0) setCurrentIdx(idx);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 text-[11px] font-bold text-slate-700"
-                  >
-                    {s.title}
-                  </button>
-                ))}
+          {sections.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase text-slate-400">Exam Sections</p>
+              <div className="space-y-1.5">
+                {sections.map((s: any, sIdx: number) => {
+                  const isActiveSection = currentQ?.sectionId
+                    ? currentQ.sectionId === s.id
+                    : currentQ?.sectionTitle === s.title;
+                  const isWritten = s.sectionType === 'WRITTEN';
+                  return (
+                    <button
+                      key={s.id || sIdx}
+                      onClick={() => {
+                        const firstQId = s.questionIds?.[0];
+                        const idx = firstQId
+                          ? questions.findIndex((q) => q.id === firstQId)
+                          : questions.findIndex((q) => q.sectionId === s.id || q.sectionTitle === s.title);
+                        if (idx >= 0) setCurrentIdx(idx);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl border text-[11px] font-bold transition ${
+                        isActiveSection
+                          ? isWritten
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-900'
+                            : 'bg-teal-50 border-teal-300 text-teal-900'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="truncate">{s.title}</span>
+                        <span className="text-[10px] uppercase opacity-75 shrink-0">
+                          {isWritten ? 'Written' : 'Objective'}
+                        </span>
+                      </div>
+                      {typeof s.marksAllocated === 'number' && s.marksAllocated > 0 && (
+                        <div className="text-[10px] font-medium opacity-75 mt-0.5">
+                          {s.marksAllocated} marks
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
