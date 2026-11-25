@@ -305,6 +305,7 @@ model Application {
   examGrades           String
   programmeId          String
   programme            Programme             @relation(fields: [programmeId], references: [id])
+  studyTrack           String                @default("12_MONTH") // 6_MONTH or 12_MONTH
   status               ApplicationStatus     @default(SUBMITTED)
   documentsUrl         String?
   reviewNotes          String?

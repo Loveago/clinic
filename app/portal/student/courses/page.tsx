@@ -211,32 +211,43 @@ export default function StudentCoursesPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 bg-emerald-950/50 p-1.5 rounded-2xl border border-emerald-700/50 shrink-0">
-              {(availableTracks.length > 0
-                ? availableTracks
-                : [
-                    { code: '6_MONTH', label: '6-Month Track' },
-                    { code: '12_MONTH', label: '12-Month Track' },
-                  ]
-              ).map((tr: any) => {
-                const isSelected = (studentMeta?.studyTrack || '12_MONTH') === tr.code;
-                return (
-                  <button
-                    key={tr.code}
-                    type="button"
-                    disabled={switchingTrack}
-                    onClick={() => handleSetTrack(tr.code)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition ${
-                      isSelected
-                        ? 'bg-emerald-400 text-slate-950 shadow-sm'
-                        : 'text-emerald-100 hover:bg-white/10'
-                    }`}
-                  >
-                    {tr.code === '6_MONTH' ? '6-Month Track' : '12-Month Track'}
-                  </button>
-                );
-              })}
-            </div>
+            {registeredCourses.length === 0 ? (
+              <div className="flex items-center gap-2 bg-emerald-950/50 p-1.5 rounded-2xl border border-emerald-700/50 shrink-0">
+                {(availableTracks.length > 0
+                  ? availableTracks
+                  : [
+                      { code: '6_MONTH', label: '6-Month Track' },
+                      { code: '12_MONTH', label: '12-Month Track' },
+                    ]
+                ).map((tr: any) => {
+                  const isSelected = (studentMeta?.studyTrack || '12_MONTH') === tr.code;
+                  return (
+                    <button
+                      key={tr.code}
+                      type="button"
+                      disabled={switchingTrack}
+                      onClick={() => handleSetTrack(tr.code)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                        isSelected
+                          ? 'bg-emerald-400 text-slate-950 shadow-sm'
+                          : 'text-emerald-100 hover:bg-white/10'
+                      }`}
+                    >
+                      {tr.code === '6_MONTH' ? '6-Month Track' : '12-Month Track'}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-4 py-2.5 rounded-2xl bg-emerald-950/60 border border-emerald-700/60 shrink-0 text-right">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                  Enrolled Duration
+                </div>
+                <div className="text-xs font-extrabold text-white">
+                  {studentMeta?.studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

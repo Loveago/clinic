@@ -30,6 +30,7 @@ export default function OnlineAdmissionApplicationPage() {
     previousSchool: '',
     examGrades: '',
     programmeId: '',
+    studyTrack: '12_MONTH',
   });
 
   const [programs, setPrograms] = useState<any[]>([]);
@@ -337,7 +338,7 @@ export default function OnlineAdmissionApplicationPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Desired Nursing Programme *
+                    Desired Programme *
                   </label>
                   <select
                     value={formData.programmeId}
@@ -349,6 +350,20 @@ export default function OnlineAdmissionApplicationPage() {
                         {p.name} ({p.duration}) — Tuition: GH₵{p.fee?.toLocaleString()}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Course Duration / Study Track *
+                  </label>
+                  <select
+                    value={formData.studyTrack}
+                    onChange={(e) => setFormData({ ...formData, studyTrack: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700/30"
+                  >
+                    <option value="6_MONTH">6-Month Intensive Track (Modules 1–13 in 1 Semester + Final Exam)</option>
+                    <option value="12_MONTH">12-Month Standard Track (Modules 1–13 in 2 Semesters + End-of-Semester &amp; Final Exams)</option>
                   </select>
                 </div>
 

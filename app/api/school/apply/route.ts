@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       previousSchool,
       examGrades,
       programmeId,
+      studyTrack,
       uploadedDocuments,
       isDraft,
     } = body;
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
           previousSchool: previousSchool || 'Senior High School Graduate',
           examGrades: examGrades || 'WASSCE with credits in Core Math, English, and Integrated Science',
           programmeId,
+          studyTrack: studyTrack === '6_MONTH' ? '6_MONTH' : '12_MONTH',
           status: isDraft ? 'DRAFT' : 'SUBMITTED',
           feePaid: !isDraft,
         },

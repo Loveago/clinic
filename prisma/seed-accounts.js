@@ -151,6 +151,105 @@ async function main() {
     },
   });
 
+  // 4b. Dedicated 6-Month Track & 12-Month Track Test Students
+  const dcgCourses = await prisma.course.findMany({
+    where: { programmeId: programme.id },
+    orderBy: { code: 'asc' },
+  });
+
+  const trackStudents = [
+    {
+      email: 'student6m@actionhealth.edu.gh',
+      name: 'Kofi Boateng (6-Month Track)',
+      studentId: 'AHC/2026/6M001',
+      studyTrack: '6_MONTH',
+      phone: '+233 24 890 6001',
+      invoiceRef: 'INV-2026-6M001',
+    },
+    {
+      email: 'student12m@actionhealth.edu.gh',
+      name: 'Akua Mensah (12-Month Track)',
+      studentId: 'AHC/2026/12M001',
+      studyTrack: '12_MONTH',
+      phone: '+233 24 890 1201',
+      invoiceRef: 'INV-2026-12M001',
+    },
+  ];
+
+  for (const ts of trackStudents) {
+    const u = await prisma.user.upsert({
+      where: { email: ts.email },
+      update: { passwordHash: studentHash, role: 'STUDENT', name: ts.name },
+      create: {
+        email: ts.email,
+        passwordHash: studentHash,
+        name: ts.name,
+        role: 'STUDENT',
+        phone: ts.phone,
+      },
+    });
+    const st = await prisma.student.upsert({
+      where: { userId: u.id },
+      update: {
+        programmeId: programme.id,
+        studyTrack: ts.studyTrack,
+        status: 'ACTIVE',
+      },
+      create: {
+        studentId: ts.studentId,
+        userId: u.id,
+        programmeId: programme.id,
+        studyTrack: ts.studyTrack,
+        level: 'Level 100',
+        intake: '2025/2026 Cohort',
+        academicYear: '2025/2026',
+        currentSemester: 'First Semester',
+        status: 'ACTIVE',
+        nationality: 'Ghanaian',
+      },
+    });
+
+    for (const c of dcgCourses) {
+      await prisma.courseEnrollment.upsert({
+        where: { studentId_courseId: { studentId: st.id, courseId: c.id } },
+        update: {},
+        create: { studentId: st.id, courseId: c.id },
+      });
+      await prisma.courseRegistration.upsert({
+        where: {
+          studentId_courseId: {
+            studentId: st.id,
+            courseId: c.id,
+          },
+        },
+        update: {},
+        create: {
+          studentId: st.id,
+          courseId: c.id,
+          status: 'REGISTERED',
+        },
+      });
+    }
+
+    await prisma.invoice.upsert({
+      where: { invoiceNumber: ts.invoiceRef },
+      update: {},
+      create: {
+        invoiceNumber: ts.invoiceRef,
+        studentId: st.id,
+        title: `Tuition Fee — ${ts.studyTrack === '6_MONTH' ? '6-Month Intensive Track' : '12-Month Standard Track'}`,
+        academicYear: '2025/2026',
+        semester: 'First Semester',
+        discountAmount: 0,
+        amount: 3500,
+        amountPaid: 0,
+        balance: 3500,
+        dueDate: '2026-12-31',
+        status: 'UNPAID',
+      },
+    });
+  }
+
   const clinicAdminEmail = (process.env.SEED_CLINIC_ADMIN_EMAIL || 'clinic.admin@actionhealth.edu.gh').trim().toLowerCase();
   const clinicAdminPassword = process.env.SEED_CLINIC_ADMIN_PASSWORD || 'ClinicAdmin@2026!';
   const clinicAdminHash = await bcrypt.hash(clinicAdminPassword, 10);

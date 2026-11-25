@@ -311,6 +311,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               studentId: generatedStudentId,
               userId: userId!,
               programmeId: application.programmeId,
+              studyTrack: application.studyTrack || '12_MONTH',
               cohortId: cohortId || null,
               level: level || 'Level 100',
               academicYear: application.admissionPeriod?.academicYear || '2025/2026',
