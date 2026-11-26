@@ -11,7 +11,7 @@
   }
 
   body {
-    @apply bg-[#f8faf9] text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900;
+    @apply bg-[#f8faf9] text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }

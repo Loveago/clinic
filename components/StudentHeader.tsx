@@ -40,23 +40,32 @@ export default function StudentHeader({
     setReadIds(next);
   };
 
+  const handleMobileMenuClick = () => {
+    if (onOpenMobileMenu) {
+      onOpenMobileMenu();
+    } else if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('open-student-mobile-menu'));
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 py-4 px-4 sm:px-8 flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 py-3 sm:py-4 px-4 sm:px-8 flex items-center justify-between gap-2">
       {/* Left: Mobile trigger & Titles */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <button
-          onClick={onOpenMobileMenu}
-          className="lg:hidden p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+          type="button"
+          onClick={handleMobileMenuClick}
+          className="lg:hidden p-2 -ml-1 text-slate-700 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors shrink-0"
           aria-label="Open mobile menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-2xl font-bold text-slate-900 leading-tight truncate">
             {title}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium">{subtitle}</p>
+          <p className="text-[11px] sm:text-sm text-slate-500 font-medium truncate">{subtitle}</p>
         </div>
       </div>
 
@@ -80,7 +89,7 @@ export default function StudentHeader({
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 z-50 animate-in fade-in slide-in-from-top-2">
+            <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 z-50 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Announcements &amp; Alerts

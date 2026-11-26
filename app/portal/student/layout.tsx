@@ -14,6 +14,12 @@ export default function StudentPortalLayout({
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
+    const handleOpenMenu = () => setMobileSidebarOpen(true);
+    window.addEventListener('open-student-mobile-menu', handleOpenMenu);
+    return () => window.removeEventListener('open-student-mobile-menu', handleOpenMenu);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     fetch('/api/auth/me')
       .then((res) => {
@@ -60,7 +66,7 @@ export default function StudentPortalLayout({
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-64 flex flex-col min-w-0 overflow-x-hidden">
         {children}
       </div>
     </div>
